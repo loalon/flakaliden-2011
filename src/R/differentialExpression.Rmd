@@ -175,6 +175,7 @@ geneNumber <- length(rownames(assay(vsd.QA.fix)))
 ```{r}
 plotPCA(vsd.fix, intgroup = c("date"), ntop=geneNumber)
 ```
+
 ```{r}
 plotPCA(vsd.fix, intgroup = c("year"), ntop=geneNumber)
 ```
