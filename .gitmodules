@@ -1,3 +1,6 @@
 [submodule "Rtoolbox"]
 	path = Rtoolbox
 	url = https://github.com/loalon/Rtoolbox
+[submodule "UPSCb-common"]
+	path = UPSCb-common
+	url = https://github.com/UPSCb/UPSCb-common.git
