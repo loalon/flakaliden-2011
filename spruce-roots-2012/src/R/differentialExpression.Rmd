@@ -14,8 +14,8 @@ spruce roots Flakaliden 2012 data.
 
 *20200324 Creation  
 *20200331 5 year fertilization excluded  
-*20200407 Added F vs C to new section
-*20200417 Added plot PCA
+*20200407 Added F vs C to new section  
+*20200417 Added plot PCA  
 
 ## Prerequisites
 All RNAseq Fastq files where previously processed by a nextflow pipeline for RNAseq analysis.
@@ -48,7 +48,7 @@ projectFolder <- "/mnt/picea/projects/spruce/vhurry/spruce-flakaliden-root-2012"
 deFolder <- file.path(projectFolder, "DE")
 ```
 
-```{r loadDEpreprocessed, echo=FALSE}
+```{r loadDEpreprocessed, echo=FALSE, eval=FALSE}
 load(file.path(deFolder, "allDEresults.RData"))
 ```
 
@@ -62,14 +62,16 @@ Add the interaction group to the metadata, in order to simplify
 ```{r}
 head(meta, n=3)
 meta$date <- factor(meta$date, levels = c("Early_June", "Late_June", "August", "October") )
-
 ```
+
 We remove the 5 year fertilization samples as we want to compare only control vs 25 year fertilization
 ```{r remove5year}
 meta$treatment <- ifelse(meta$treatment=="25_year", "Fertilised", meta$treatment)
 meta <- meta[meta$treatment != "5_year",]
 meta$treatment <- factor(meta$treatment, levels = c("Control", "Fertilised") )
 ```
+
+Create a metadata group
 ```{r}
 meta$group <- paste0(meta$treatment, "_", meta$date)
 meta$group <- factor(meta$group)
@@ -102,7 +104,7 @@ colnames(ddsMatrix) <- meta$SciLifeID
 save(ddsMatrix, file = file.path(projectFolder, "DE", "ddsMatrix_raw.RData"))
 ```
 
-check the DESeqDataSet
+Check the DESeqDataSet
 ```{r}
 ddsMatrix
 ```
@@ -111,11 +113,6 @@ Some genes have 0 expression accross all samples we can remove them
 ```{r}
 ddsMatrix <- ddsMatrix[(rowSums(counts(ddsMatrix)) > 0),]
 ddsMatrix
-```
-
-We save the gene names of all expressed genes for future uses
-```{r}
-# write.table(rownames(assay(ddsMatrix)), file="backgroundCombined.txt", sep='\t', row.names = F, col.names=F, quote = F)
 ```
 
 
@@ -127,6 +124,7 @@ We use blind vst to plot a PCA and check for patterns and outliers
 vsd.QA <- vst(ddsMatrix, blind=TRUE)
 geneNumber <- length(rownames(assay(vsd.QA)))
 ```
+
 PCA using only treatment metadata
 ```{r}
 plotPCA(vsd.QA, intgroup = c("treatment"), ntop=geneNumber)
@@ -147,15 +145,14 @@ PCA using both treatment and date
 plotPCA(vsd.QA, intgroup = c("treatment", "date"), ntop=geneNumber)
 ```
 
-
-The PCAs seems correct. 
+The PCAs seems correct, no obvious outliers, no need to remove any effect.
 ```{r}
 save(vsd.QA, meta, ddsMatrix, file = file.path(projectFolder, "DE", "vsd_QA.RData"))
 ```
+
 ## Focused PCA
 We plot a PCA with letters instead of numbers for increased clarity
 ```{r}
-
 vsd.QA.t <- t(assay(vsd.QA))
 pca <- prcomp(vsd.QA.t)
 percents <- round(summary(pca)$importance[2,]*100)
@@ -182,14 +179,11 @@ We can see how PC proportions are distributed
 screePlot(pca, 10)
 ```
 
-
-
-The first 5 components explain 57 % of the variance
+The first 5 components explain the following percentage of variance
 ```{r}
 summary(pca)$importance[2,][1:5] *100
 sum(summary(pca)$importance[2,][1:5]) * 100
 ```
-
 
 
 ## PCA bi-plot comparition
@@ -199,8 +193,6 @@ As seen before, we can focus on the 5 components and plot a comparative bi-plot
 par(cex=1.0, cex.axis=0.8, cex.main=0.8)
 pairs(pca$x[,1:5], col=cols, main="Principal components analysis bi-plot\nPCs 1-5", pch=pchs)
 ```
-
-
 
 ## 3D PCA
 We represent the first 3 compoments as a 3D interactive object
@@ -237,7 +229,7 @@ We are interested on future comparitions like DE genes in each timepoints or bet
 that is why we created the interaction group
 
 ## Run DESeq
-```{r runDE, eval=FALSE}
+```{r runDE, eval=T}
 dds <- DESeq(ddsMatrix)
 ```
 
@@ -262,7 +254,7 @@ as a list and then we can process them.
 For this comparition we take consider only the control condition and we compare each pair of weeks
 to determine which genes are up or down regaluated from one week to the previous week
 
-```{r eval=FALSE}
+```{r eval=T}
 control.res <- mapply(getRes, controlVector[-1],
                       controlVector[-length(controlVector)], 
                       MoreArgs = list(localDDS=dds, group="group"))
@@ -272,7 +264,7 @@ control.res <- mapply(getRes, controlVector[-1],
 For this comparition we take consider only the fertilised condition and we compare each pair of weeks
 to determine which genes are up or down regaluated from one week to the previous week
 
-```{r eval=FALSE}
+```{r eval=T}
 fertilised.res <- mapply(getRes, fertilisedVector[-1],
                           fertilisedVector[-length(fertilisedVector)], 
                           MoreArgs = list(localDDS=dds, group="group"))
@@ -281,7 +273,7 @@ fertilised.res <- mapply(getRes, fertilisedVector[-1],
 
 
 We add the corresponding names to the results
-```{r eval=FALSE}
+```{r eval=T}
 names(control.res) <- c("Control_Late_JunevsControl_Early_June", 
                         "Control_AugustvsControl_Late_June", 
                         "Control_OctobervsControl_August")
@@ -294,15 +286,15 @@ names(fertilised.res) <- c("Fertilised_Late_JunevsFertilised_Early_June",
 ### Timepoint Fertilised  vs Control
 For this comparition we take consider only a date each time and then compare DE genes due to 25 year fertilisation
 
-```{r eval=FALSE}
-combinedFvsC.res <- mapply(getRes, fertilisedVector, controlVector,
+```{r eval=T}
+combined.res <- mapply(getRes, fertilisedVector, controlVector,
                             MoreArgs = list(localDDS=dds, group="group"))
 ```
 
 We add the corresponding names to the results
-```{r eval=FALSE}
+```{r eval=T}
 
-names(combinedFvsC.res) <- c("Fertilised_Early_JunevsControl_Early_June", 
+names(combined.res) <- c("Fertilised_Early_JunevsControl_Early_June", 
                               "Fertilised_Late_JunevsControl_Late_June", 
                               "Fertilised_AugustvsControl_August", 
                               "Fertilised_OctobervsControl_October")
@@ -313,10 +305,11 @@ The results contain all the genes, we need to filter them to get only those gene
 that are stadistical significant and that have a strong condtition effect
 For that we discard all the genes that has a padj higher than 0.01 and
 a log2FoldChange lower than 0.5 (absolute value)
+
 ```{r filtering, results="hide", message=FALSE}
 control.res.filter <- lapply(control.res, filterDE)
 fertilised.res.filter <- lapply(fertilised.res, filterDE)
-combinedFvsC.res.filter <- lapply(combinedFvsC.res, filterDE)
+combined.res.filter <- lapply(combined.res, filterDE)
 
 ```
 
@@ -324,9 +317,7 @@ It is a good practice to do a check and see if the filtering was correct
 ```{r checkfilter, results="hide", message=FALSE}
 lapply(control.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
 lapply(fertilised.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
-
-lapply(combinedFvsC.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
-
+lapply(combined.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
 ```
 
 ## Plot DE genes
@@ -345,7 +336,7 @@ plotUpAndDown(fertilised.res.filter)
 
 ### Fertilised vs Control per date plot
 ```{r}
-plotUpAndDown(combinedFvsC.res.filter)
+plotUpAndDown(combined.res.filter)
 ```
 
 ## DE Fertilisation vs Control
@@ -360,14 +351,13 @@ resSpruceTreatment <- list( FertilisedvsControl = results(ddsSpruceTreatment ,
         parallel = FALSE) 
         )
 
-save(ddsSpruceTreatment, resSpruceTreatment, file=file.path(projectFolder, "DE", "ddsTreatment.RData"))
-de4network(resSpruceTreatment, file.path(deFolder,"deFvsC.tsv"))
 resSpruceTreatment.filter <- lapply(resSpruceTreatment, filterDE)
-
-plotUpAndDown(resSpruceTreatment.filter)
-
 ```
 
+### Fertilised vs Control plot
+```{r}
+plotUpAndDown(resSpruceTreatment.filter)
+```
 
 # Results export
 ## Data for networks
@@ -384,6 +374,7 @@ combinedData <- combinedData[,which(colMads(as.matrix(combinedData)) > 0)]
 
 write.table(combinedData, file =file.path(deFolder, "spruceRoots2012Combined.tsv"), 
             sep='\t', row.names=FALSE, col.names=FALSE)
+
 writeLines(paste(colnames(combinedData), collapse = '\t'),
            con=file.path(deFolder,"spruceRoots2012CombinedNames.txt"))
 ```
@@ -414,24 +405,23 @@ We export the results unfiltered
 ```{r exportDEresults, results="hide", message=FALSE}
 de4network(control.res, file.path(deFolder,"deControl.tsv"))
 de4network(fertilised.res, file.path(deFolder,"deFertilised.tsv"))
-de4network(combinedFvsC.res, file.path(deFolder,"deCombinedFvsC.tsv"))
-
+de4network(combined.res, file.path(deFolder,"deCombinedC.tsv"))
+de4network(resSpruceTreatment, file.path(deFolder,"deFvsC.tsv"))
 ```
-
 
 
 # Session information
 ```{r}
 sessionInfo()
 ```
+
 ```{r saveresults,eval=FALSE, echo=FALSE}
+save(ddsSpruceTreatment, resSpruceTreatment, file=file.path(projectFolder, "DE", "ddsTreatment.RData"))
 
 save(dds, control.res, fertilised.res,
      combinedFvsC.res, 
      file=file.path(deFolder, "allDEresults.RData"))
 ```
-
-
 
 
 # References
