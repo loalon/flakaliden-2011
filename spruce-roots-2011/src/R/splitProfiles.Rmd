@@ -1,0 +1,142 @@
+---
+title: "Untitled"
+author: "Alonso Serrano"
+date: "9/5/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+ 
+
+## Prerequisites
+ach sample, file name, time, condition and replica number.
+
+# Setup
+Load libraries
+```{r, message=FALSE}
+#library(DESeq2)
+#library(tximport)
+#library(BiocParallel)
+#library(plotly)
+#library(dplyr)
+#register(MulticoreParam(4))
+source("~/Git/UPSCb/src/R/gopher.R")
+source("~/Rtoolbox/utilsDE.r")
+source("~/Rtoolbox/getEigengenes.R")
+source("~/Rtoolbox/plotEnrichedTreemap.R")
+source("~/Rtoolbox/plotEigenGene.R")
+source("~/Rtoolbox/infomapTools.R")
+
+```
+
+
+
+Set the project folder
+
+```{r}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/14_SpruceRoots_Project/"
+deFolder <- paste0(projectFolder,"DE/")
+clusterNames <- sapply(1:15, function(x){
+  paste0("Cluster", x)
+})
+```
+
+```{r}
+clusterFolder <- paste0(projectFolder,"spruce-networks/control/cluster/")
+clusterFile <- paste0(clusterFolder, "InfomapClusters.tsv")
+InfomapClusters <- read.delim(clusterFile, stringsAsFactors=FALSE)
+dataFile <- paste0(deFolder, "controlVsdData.RData")
+background <- read.table(paste0(deFolder, "background.txt"), stringsAsFactors = F, header=F)[[1]]
+load(dataFile)
+theData <- controlData
+```
+
+
+```{r splitClusters}
+splitClusters <- lapply(clusterNames, function(cluster){
+  theCluster <- InfomapClusters[InfomapClusters$cluster==cluster,]$gene
+  cat(paste0("<H3>", cluster, "","</H3>"))
+  cat("\n\n")
+  res <- getEigenGenes(theData, theCluster)
+  pos <-length(res$positive)
+  neg <- length(res$negative)
+  posRatio <- round((pos/(pos+neg)) * 100, digits = 2)
+  
+  ratio <- paste0(posRatio,"-",100-posRatio)
+  cat(paste("Genes in main profile", pos, "\n"))
+  cat(paste("Genes in reverse profile", neg, "\n"))
+  cat(paste("Main-reverse ratio", ratio, "\n"))
+  res
+})
+names(splitClusters) <- clusterNames
+```
+
+```{r splitEnr, eval=F}
+controlSplitEnr <- lapply(splitClusters, function(splitedCluster){
+  #print(splitedCluster)
+ x<- enrichClusters(splitedCluster, background = background)
+})
+)
+```
+```{r saveEnr, eval=F}
+save(controlSplitEnr, file=paste0(clusterFolder,"controlSplitEnr.RData"))
+```
+```{r loadControlEnr, include=FALSE}
+load(file=paste0(clusterFolder, "controlSplitEnr.RData"))
+
+```
+
+```{r plotControlEnr, message=FALSE, warning=FALSE, results='asis'}
+theEnrichment <- controlSplitEnr
+for(cluster in clusterNames){
+    theCluster <- InfomapClusters[InfomapClusters$cluster==cluster,]$gene
+  cat(paste0("<H3>", cluster, "","</H3>"))
+  
+  cat("\n\n")
+  print(plotEigengene(theData, theCluster, substr(rownames(theData),5,5), 
+              as.integer(substr(rownames(controlData),2,3)), timeUnits = "Week", plotBothProfiles = T, colors=c("#009444", "lightgreen")))
+  clus <- match(cluster, clusterNames)
+  cat("\n\n")
+  res <- splitClusters[[cluster]]
+    pos <-length(res$positive)
+  neg <- length(res$negative)
+  posRatio <- round((pos/(pos+neg)) * 100, digits = 2)
+  
+  ratio <- paste0(posRatio,"-",100-posRatio)
+  cat(paste("Genes in main profile", pos, "\n"))
+  cat(paste("Genes in reverse profile", neg, "\n"))
+  cat(paste("Main-reverse ratio", ratio, "\n"))
+  
+  for(profile in c('positive','negative')) {
+    
+    enr <- theEnrichment[[cluster]][[profile]]
+    if (!is.null(enr$go) && any(enr$go$namespace =='BP')) {
+      
+      plotEnrichedTreemap(enr, enrichment = 'go', namespace = 'BP',
+                          clusterColor=clusterTreemapColors[clus],
+                          clusterText=clusterTreemapText[clus], 
+                          title = paste(cluster," GO enrichment for BP.", 
+                                        "Expression profile:", profile))
+    }
+    cat("\n")
+    cat("<hr>")
+        #enr <- theEnrichment[[cluster]][[profile]][['mapman']]
+    
+    if (!is.null(enr$mapman)) {
+      plotEnrichedTreemap(enr, enrichment = 'mapman', 
+                        clusterColor=clusterTreemapColors[clus],
+                        clusterText=clusterTreemapText[clus], 
+                          title = paste(cluster," Mapman enrichment.", 
+                                        "Expression profile:", profile))
+    }
+    
+    cat("\n")
+    cat("<hr>")
+  }
+}
+```
+

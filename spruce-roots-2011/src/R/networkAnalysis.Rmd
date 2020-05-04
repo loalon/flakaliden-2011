@@ -1,0 +1,80 @@
+---
+title: "Network Analysis"
+author: "Alonso Serrano"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+
+```{r ini}
+library(RLinuxModules)
+library(data.table)
+module("load bioinfo-tools seidr-devel")
+module("load bioinfo-tools InfoMap")
+
+source("/mnt/picea/home/aserrano/Rtoolbox/infomapTools.R")
+
+seidrExe <- ("/mnt/picea/home/bastian/Git/seidr-devel/build/seidr ")
+
+backboneFile <- "~/drought/seidr/backbone/backbone-1-percent.sf"
+clusterFolder <- "~/drought/seidr/cluster/"
+dir.create(clusterFolder, showWarnings = FALSE)
+algo <- "irp_score"
+edgeFile <- paste0(clusterFolder,"edgeList.txt")
+edgeIndexFile <- paste0(clusterFolder,"edgeIndexList.txt")
+treeFile <- paste0(clusterFolder,"edgeIndexList.tree")
+
+```
+Use Seidr reheader function to drop not connected nodes
+```{r reheader, results=F, message='HIDE'}
+system(paste(seidrExe, "reheader" , backboneFile, "-T temp"), intern=TRUE)
+
+```
+```{r include=FALSE}
+
+headResult <- system(paste(seidrExe, "view", backboneFile, "-c -d $'\t' ", "| head -n 1"), intern=TRUE)
+headResult <- unlist(strsplit(headResult, "\t"))
+
+algoIndex <- grep("irp_score", headResult)
+#viewResult <- system(paste0(seidrExe, "view ", backboneFile, " -c -d $'\t' | cut -f 1,2,",algoIndex), intern=TRUE)
+system(paste0(seidrExe, "view ", backboneFile, "  -d $'\t' | cut -f 1,2,",algoIndex, " > ",edgeFile), intern=TRUE)
+system(paste0(seidrExe, "view ", backboneFile, " -N -d $'\t' | cut -f 1,2,",algoIndex," >",edgeIndexFile), intern=TRUE)
+#infomapTable <-data.frame(do.call(rbind, strsplit(infomapRes, "\t")))
+```
+
+
+```{r infomap, results=F, message='HIDE'}
+markovTime <- 2
+system(paste("Infomap ", edgeIndexFile," -z --markov-time ", markovTime," ", clusterFolder))
+infomapRes <- system(paste0(seidrExe, " resolve -s ", backboneFile, " ", treeFile), intern=TRUE)
+infomapTable <-data.frame(do.call(rbind, strsplit(infomapRes, "\t")))
+infomapTable <- prepareData(infomapTable)
+infomapTable$Level1 <- infomapTable$P1
+infomapTable$Level2 <- paste0(infomapTable$Level1,":",infomapTable$P2)
+infomapTable$Level2 <- ifelse(infomapTable$Level2 %like% "NA", NA, infomapTable$Level2)  
+#infomapTable <- unite(infomapTable, 'Level2', "X2", "X3", sep=":", remove=FALSE)
+#infomapTable$Level2 <- ifelse(infomapTable$Level2 %like% "NA", NA, infomapTable$Level2)  
+
+clusterQA(infomapTable)
+clusterQA(infomapTable, level='Level2')
+```
+
+```{r}
+selectedClusters <- getClusterByMinSize(infomapTable, min=40)
+
+topClusters <- getClusters(infomapTable, "Level1", numberOfClusters=selectedClusters)
+
+save4Cytoscape(topClusters, file=paste0(clusterFolder,"InfomapClusters.tsv"))
+
+#save(topClusters, file=paste0(clusterFolder,"infomapcluster.RData"))
+
+#' # enrichment of top clusters
+
+
+```

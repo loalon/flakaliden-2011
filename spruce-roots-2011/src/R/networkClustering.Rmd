@@ -1,0 +1,298 @@
+---
+title: "Network Analysis"
+author: "Alonso Serrano"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Introduction
+This file contains the script and results of the network clustering of the Spruce 2011 root dataset. 
+
+## Prerequisites
+The variance stabilization transformed dataset, either as TSV or RData obtained from de differential expression analysis 
+step.
+Seidr aggregated network file that has a threshold applied
+
+
+## Setup
+
+```{r ini, message=FALSE, warning=FALSE}
+library(RLinuxModules)
+library(data.table)
+module("load bioinfo-tools seidr-devel")
+module("load bioinfo-tools InfoMap")
+source("~/Rtoolbox/infomapTools.R")
+source("~/Rtoolbox/plotEigenGene.R")
+source("~/Rtoolbox/plotEnrichedTreemap.R")
+source('~/Git/UPSCb/src/R/gopher.R')
+seidrExe <- ("/mnt/picea/home/bastian/Git/seidr-devel/build/seidr ")
+projectDir <- "/mnt/picea/projects/spruce/vhurry/14_SpruceRoots_Project/"
+workDir <- paste0(projectDir,"spruce-networks/")
+deDir <- paste0(projectDir,"DE/")
+background <- read.table(paste0(deDir, "background.txt"), stringsAsFactors = F, header=F)[[1]]
+load(paste0(deDir, "controlVsdData.RData"))
+load(paste0(deDir, "fertilisedVsdData.RData"))
+load(paste0(deDir, "combinedVsdData.RData"))
+```
+## Auxilary functions
+```{r , message=FALSE, warning=FALSE}
+plotResults <- function(clusterDir, theData, theClusters, theEnrichment,colors = c("#009444", "#BE9230")) {
+  #crete the dir if it doesn't exist
+  dir.create(clusterDir, showWarnings = FALSE)
+  
+  #save  results
+  for (clus in 1:15) {
+    
+    #clusName <- names(theClusters)[clus]
+    clusName <- paste0('Cluster',clus)
+    #print(clusName)
+    
+    
+    png(paste0(clusterDir, clusName, ".png" ), width = 1482, height=571 )
+    print(plotEigengene(theData, theClusters[[clusName]], 
+                        substr(rownames(theData),5,5), 
+                        as.integer(substr(rownames(theData),2,3)), 
+                        timeUnits = "Week",
+                        colors=colors#,
+                        #noLegend = F,
+                        #legendTitle="Condition",
+                        #title = paste(clusName,"Genes:", length(theClusters[[clusName]]) )
+                        ))
+    dev.off()
+    
+    png(paste0(clusterDir, clusName,"_enr_","go_bp",".png" ), width = 1482, height=571 )
+    enr <- theEnrichment[[clusName]][['go']]
+
+    if (!is.null(enr) && any(enr$namespace =='BP')) {
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'go', 
+                        namespace = 'BP',
+                        clusterColor=clusterTreemapColors[clus],
+                        clusterText=clusterTreemapText[clus])
+    }
+    dev.off()
+      png(paste0(clusterDir,clusName,"_enr_","mapman",".png" ), width = 1482, height=571 )
+    enr <- theEnrichment[[clusName]][['mapman']]
+
+    if (!is.null(enr)) {
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'mapman', 
+                        clusterColor=clusterTreemapColors[clus],
+                        clusterText=clusterTreemapText[clus])
+    }
+    dev.off()
+  }
+   
+  
+  for (clus in 1:15) {
+  
+    clusName <- paste0('Cluster',clus)
+    cat(paste0("<H3>", clusName, "","</H3>"))
+    cat("\n\n")
+    print(plotEigengene(theData, theClusters[[clusName]],                      
+                  substr(rownames(theData),5,5), 
+                        as.integer(substr(rownames(theData),2,3)), 
+                        timeUnits = "Week",
+                        noLegend = F,
+                        legendTitle="Condition",
+                    colors=colors,
+                        title = paste(clusName,"Genes:", length(theClusters[[clusName]]) )))
+     cat("\n")
+    enr <- theEnrichment[[clusName]][['go']]
+    if (!is.null(enr) && any(enr$namespace =='BP')) {
+      
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'go', namespace = 'BP',
+                          clusterColor=clusterTreemapColors[clus],
+                          clusterText=clusterTreemapText[clus], 
+                          title = paste(clusName," GO enrichment for BP"))
+    }
+    cat("\n")
+    cat("<hr>")
+        enr <- theEnrichment[[clusName]][['mapman']]
+
+    if (!is.null(enr)) {
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'mapman', 
+                        clusterColor=clusterTreemapColors[clus],
+                        clusterText=clusterTreemapText[clus], 
+                          title = paste(clusName," Mapman enrichment for BP"))
+    }
+
+    cat("\n")
+    cat("<hr>")
+  }
+  
+}
+```
+
+
+# Network clustering
+For each network, we will first some parameters, like folder location of the Seidr file, the markov-time parameter we found acceptable for clustering, the index edge file obtained from Seidr.
+
+## Control network
+### Clustering
+First we define the parameters for the control network, the location of the seidr file and the markov time
+```{r control}
+netSubDir <- paste0(workDir, "control/aggregated/")
+seidrFile <- paste0(netSubDir, "aggregated_0.28122.sf")
+clusterFolder <- paste0(workDir, "control/cluster/")
+
+edgeIndexFile <- paste0(netSubDir, "controlIndexEdgeList.txt")
+treeFile <- paste0(clusterFolder,"controlIndexEdgeList.tree")
+markovTime <- 0.54
+
+dir.create(clusterFolder, showWarnings = FALSE)
+
+system(paste("Infomap ", edgeIndexFile," -z --markov-time ", markovTime," ", clusterFolder))
+infomapRes <- system(paste0(seidrExe, " resolve -s ", seidrFile, " ", treeFile), intern=TRUE)
+infomapTable <-data.frame(do.call(rbind, strsplit(infomapRes, "\t")))
+infomapTable <- prepareData(infomapTable)
+infomapTable$Level1 <- infomapTable$P1
+infomapTable$Level2 <- paste0(infomapTable$Level1,":",infomapTable$P2)
+infomapTable$Level2 <- ifelse(infomapTable$Level2 %like% "NA", NA, infomapTable$Level2)  
+
+clusterQA(infomapTable)
+clusterQA(infomapTable, level='Level2')
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+minSize <- 200
+selectedClusters <- getClusterByMinSize(infomapTable, min=minSize)
+controlClusters <- getClusters(infomapTable, "Level1", numberOfClusters=selectedClusters)
+save4Cytoscape(controlClusters, file=paste0(clusterFolder,"InfomapClusters.tsv"))
+```
+
+### Enrichment
+```{r, eval=F}
+controlEnr <- enrichClusters(controlClusters, background = background)
+```
+```{r loadEnr, include=FALSE}
+#save(controlEnr, file=paste0(clusterFolder,"controlEnr.RData"))
+load(file=paste0(clusterFolder, "controlEnr.RData"))
+#print(controlEnr)
+```
+
+### Plot results
+```{r plotControl, message=FALSE, warning=FALSE, results='asis'}
+# clusterDir <- paste0(clusterFolder, "controlClustersPlots/")
+# theData <- controlData
+# theClusters <- controlClusters
+# theEnrichment <- controlEnr
+
+plotResults(paste0(clusterFolder, "controlClustersPlots/"), controlData, controlClusters, controlEnr)
+
+
+```
+
+## Fertilised network
+### Clustering
+```{r fertilised}
+netSubDir <- paste0(workDir, "fertilised/aggregated/")
+seidrFile <- paste0(netSubDir, "aggregated_0.26794.sf")
+clusterFolder <- paste0(workDir, "fertilised/cluster/")
+
+edgeIndexFile <- paste0(netSubDir, "fertilisedIndexEdgeList.txt")
+treeFile <- paste0(clusterFolder,"fertilisedIndexEdgeList.tree")
+markovTime <- 0.5
+
+dir.create(clusterFolder, showWarnings = FALSE)
+
+system(paste("Infomap ", edgeIndexFile," -z --markov-time ", markovTime," ", clusterFolder))
+infomapRes <- system(paste0(seidrExe, " resolve -s ", seidrFile, " ", treeFile), intern=TRUE)
+infomapTable <-data.frame(do.call(rbind, strsplit(infomapRes, "\t")))
+infomapTable <- prepareData(infomapTable)
+infomapTable$Level1 <- infomapTable$P1
+infomapTable$Level2 <- paste0(infomapTable$Level1,":",infomapTable$P2)
+infomapTable$Level2 <- ifelse(infomapTable$Level2 %like% "NA", NA, infomapTable$Level2)  
+
+clusterQA(infomapTable)
+clusterQA(infomapTable, level='Level2')
+```
+
+```{r}
+minSize <- 200
+selectedClusters <- getClusterByMinSize(infomapTable, min=minSize)
+fertilisedClusters <- getClusters(infomapTable, "Level1", numberOfClusters=selectedClusters)
+save4Cytoscape(fertilisedClusters, file=paste0(clusterFolder,"InfomapClusters.tsv"))
+```
+
+### Enrichment
+```{r enrFertilised, eval=F}
+fertilisedEnr <- enrichClusters(fertilisedClusters, background = background)
+```
+```{r loadfertEnr, include=FALSE}
+#save(fertilisedEnr, file=paste0(clusterFolder,"fertilisedEnr.RData"))
+load(file=paste0(clusterFolder, "fertilisedEnr.RData"))
+#print(fertilisedEnr)
+```
+
+
+### Plot results
+```{r plotFertilised, results='asis'}
+plotResults(paste0(clusterFolder, "fertilisedClustersPlots/"), fertilisedData, fertilisedClusters, fertilisedEnr, colors = c("#BE9230","#009444"))
+
+
+```
+
+
+## Combined network
+### Clustering
+```{r combined}
+netSubDir <- paste0(workDir, "combined/aggregated/")
+seidrFile <- paste0(netSubDir, "aggregated_0.27043.sf")
+clusterFolder <- paste0(workDir, "combined/cluster/")
+
+edgeIndexFile <- paste0(netSubDir, "combinedIndexEdgeList.txt")
+treeFile <- paste0(clusterFolder,"combinedIndexEdgeList.tree")
+markovTime <- 0.53
+
+dir.create(clusterFolder, showWarnings = FALSE)
+
+system(paste("Infomap ", edgeIndexFile," -z --markov-time ", markovTime," ", clusterFolder))
+infomapRes <- system(paste0(seidrExe, " resolve -s ", seidrFile, " ", treeFile), intern=TRUE)
+infomapTable <-data.frame(do.call(rbind, strsplit(infomapRes, "\t")))
+infomapTable <- prepareData(infomapTable)
+infomapTable$Level1 <- infomapTable$P1
+infomapTable$Level2 <- paste0(infomapTable$Level1,":",infomapTable$P2)
+infomapTable$Level2 <- ifelse(infomapTable$Level2 %like% "NA", NA, infomapTable$Level2)  
+
+clusterQA(infomapTable)
+clusterQA(infomapTable, level='Level2')
+```
+
+```{r}
+minSize <- 250
+selectedClusters <- getClusterByMinSize(infomapTable, min=minSize)
+combinedClusters <- getClusters(infomapTable, "Level1", numberOfClusters=selectedClusters)
+save4Cytoscape(combinedClusters, file=paste0(clusterFolder,"InfomapClusters.tsv"))
+```
+
+### Enrichment
+```{r, eval=F}
+combinedEnr <- enrichClusters(combinedClusters, background = background)
+```
+```{r loadCombEnr, include=FALSE}
+#save(combinedEnr, file=paste0(clusterFolder,"combinedEnr.RData"))
+load(file=paste0(clusterFolder, "combinedEnr.RData"))
+#print(combinedEnr)
+```
+
+### Plot results
+```{r plotCombined, results='asis'}
+plotResults(paste0(clusterFolder, "combinedClustersPlots/"), combinedData, combinedClusters, combinedEnr)
+
+
+```
+# Session information
+Seidr version 0.11.0
+
+Infomap version 0.19.26
+
+
+```{r}
+sessionInfo()
+```
