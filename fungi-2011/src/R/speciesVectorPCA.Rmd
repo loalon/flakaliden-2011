@@ -1,0 +1,72 @@
+---
+title: "Species Vector PCA"
+author: "Alonso Serrano"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+   toc: true
+   number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library("DESeq2")
+# library(vegan)
+# library(ape)
+library(dplyr)
+library(ggfortify)
+library(plotly)
+source('~/Git/UPSCb-common/src/R/gopher.R')
+source("~/Git/Rtoolbox/src/plotEnrichedTreemap.R")
+source("~/Git/Rtoolbox/src/plotUpAndDown.R")
+source("~/Git/Rtoolbox/src/plot2DvectorPCA.R")
+```
+
+```{r}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011"
+#deFolder <- file.path(projectFolder,"DE")
+dataFolder <- file.path(projectFolder,"data")
+
+load(file.path(dataFolder, "megaData.RData"))
+# guildFile <- file.path(dataFolder, "fungi.guilds.tsv")
+# rawFile <- file.path(dataFolder, "kingdom.Fungi.2011.raw.tsv")
+# metaFile <- file.path(dataFolder, "meta.tsv")
+# taxonomyFile <- file.path(dataFolder, "gene_taxonomy.tsv")
+# 
+timeColors <- c("#e6e9bd","#b4d7bc","#7dc6bb","#1cb7ba","#00a7b9","#008b9a",
+                "#849fba","#a181a6","#c76b97","#ee2e82","#8e5766","#8a7b73",
+                "#869b7f","#42885e","#1aa64a","#75b443","#9bbe3b","#e1d51d",
+                "#ffe200")
+names(timeColors) <- c("19", "20", "21", "22", "23", "24", "25", "26", "28", "31", "32", "34" ,"35", "36", "37" ,"38", "39", "40", "41")
+```
+
+```{r}
+specie <- "Cenococcum geophilum"
+
+speciesData <- megaData[megaData$species == specie,]
+
+species <- speciesData[,c(1:114, 122)]
+
+speciesM <- as.matrix(species[,2:112])
+rownames(speciesM) <- species$gene
+speciesM<- t(speciesM)
+
+speciesMeta <- data.frame(#treatMax=species$treatment, timeMax=species$treatment, 
+                          time=substr(rownames(speciesM),2,3), 
+                          treatment=substr(rownames(speciesM),4,4),
+                          group=paste0(substr(rownames(speciesM),2,3), substr(rownames(speciesM),4,4)))
+ddsMatrix <- DESeqDataSetFromMatrix(t(speciesM), colData=speciesMeta, design = ~group)
+vsd.QA <- varianceStabilizingTransformation(ddsMatrix, blind=TRUE)
+assay(vsd.QA) <- assay(vsd.QA) - min(assay(vsd.QA))
+
+png(paste0(specie,"_vectorPCA.png"), units="px", width=1920, height=1080, res=300)
+p <- plotVectorPCA(t(assay(vsd.QA)), speciesMeta, c("treatment", "time"), colorMap = timeColors)
+print(p)
+dev.off()
+
+
+```
+

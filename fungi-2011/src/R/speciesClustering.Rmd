@@ -1,0 +1,691 @@
+---
+title: "Fungi network analysis - Species - Clusterinf"
+author: "Alonso Serrano"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Introduction
+
+
+## Prerequisites
+
+
+
+## Setup
+
+```{r ini, message=FALSE, warning=FALSE}
+library(RLinuxModules)
+library(data.table)
+library(here)
+library(tidyverse)
+library(stringr)
+library(reshape2)
+module("load bioinfo-tools seidr-devel")
+module("load bioinfo-tools InfoMap")
+library(dplyr)
+source(here("Rtoolbox/src/utilsDE.r"))
+source(here("/Rtoolbox/src/plot3Dvector.R"))
+source(here("/Rtoolbox/src/plotVectorPCA.R"))
+source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
+source(here("Rtoolbox/src/plotUpAndDown.R"))
+source(here("UPSCb-common/src/R/gopher.R"))
+source(here("Rtoolbox/src/getEigengenes.R"))
+
+source("~/Git/Rtoolbox/src/infomapTools.R")
+source("~/Git/Rtoolbox/src/plotEigenGene.R")
+source("~/Git/Rtoolbox/src/plotEnrichedTreemap.R")
+source('~/Git/UPSCb-common/src/R/gopher.R')
+
+#seidrExe <- ("/mnt/picea/home/bastian/Git/seidr-devel/build/seidr ")
+projectDir <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/fungi-species"
+species <- c("cenococcum_geophilum","cortinarius_glaucopus","hyaloscypha_variabilis","hyaloscypha_bicolor","piloderma_croceum")
+#species <- c("cortinarius_glaucopus")
+conditions <- c("control", "combined")
+# workDir <- file.path("networks")
+# deDir <- file.path(projectDir,"DE")
+# networkDir <- file.path(projectDir,"networks")
+# background <- read.table(file.path(deDir, "background.txt"), stringsAsFactors = F, header=F)[[1]]
+# load(file.path(deDir, "controlVsdData.RData"))
+#load(file.path(deDir, "fertilisedVsdData.RData"))
+#
+
+#dataFolder<- file.path(projectDir, "data")
+#resultsFolder<- file.path(projectFolder, "reports")
+
+load(file.path("/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/data", "megaData.RData"))
+```
+## Auxilary functions
+```{r , message=FALSE, warning=FALSE}
+plotResults <- function(theData, theClusters, theEnrichment,colors = c("#009444", "#BE9230")) {
+  for (clusName in names(theClusters)) {
+
+    clusIndex <-which(names(theClusters) %in% clusName)
+    cat(paste0("<H3>", clusName, "","</H3>"))
+    cat("\n\n")
+    print(plotEigengene(theData, theClusters[[clusName]],                      
+                  substr(rownames(theData),4,4), 
+                        as.integer(substr(rownames(theData),2,3)), 
+                        timeUnits = "Week",
+                        noLegend = F,
+                        legendTitle="Condition",
+                    colors=colors,
+                        title = paste(clusName,"Genes:", length(theClusters[[clusName]]) )))
+
+    cat("\n")
+
+    enr <- theEnrichment[[clusName]][['kog']]
+    if (!is.null(enr) ) {
+          cat(paste0("<H4>KOG</H4>"))
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'kog', namespace = 'BP',
+                          clusterColor=clusterTreemapColors[clusIndex],
+                          clusterText=clusterTreemapText[clusIndex], 
+                          title = paste(clusName,"KOG enrichment"))
+          cat("\n")
+    cat("<hr>")
+    }
+
+        cat("\n")
+
+    enr <- theEnrichment[[clusName]][['cog']]
+    if (!is.null(enr) ) {
+          cat(paste0("<H4>COG</H4>"))
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'cog', namespace = 'BP',
+                          clusterColor=clusterTreemapColors[clusIndex],
+                          clusterText=clusterTreemapText[clusIndex], 
+                          title = paste(clusName," COG enrichment"))
+          cat("\n")
+    cat("<hr>")
+        cat("\n")
+    }
+
+      enr <- theEnrichment[[clusName]][['ko']]
+    if (!is.null(enr) ) {
+      cat(paste0("<H4>KO</H4>"))
+
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'ko', namespace = 'BP',
+                          clusterColor=clusterTreemapColors[clusIndex],
+                          clusterText=clusterTreemapText[clusIndex], 
+                          title = paste(clusName," KO enrichment"))
+      cat("\n")
+      cat("<hr>")
+      cat("\n")
+    }
+
+
+    enr <- theEnrichment[[clusName]][['ko_pathway']]
+    if (!is.null(enr) ) {
+      cat(paste0("<H4>KO pathway</H4>"))
+      plotEnrichedTreemap(theEnrichment[[clusName]], enrichment = 'ko_pathway', namespace = 'BP',
+                          clusterColor=clusterTreemapColors[clusIndex],
+                          clusterText=clusterTreemapText[clusIndex], 
+                          title = paste(clusName," KO pathway enrichment"))
+      cat("\n")
+      cat("<hr>")
+    }
+      cat("\n")
+      cat("<hr>")
+
+  }
+  
+}
+```
+
+# Thresholding
+
+```{r seidrDescribe}
+seidrDescribe <- function(seidrFile){
+  require(stringr)
+  require(tidyverse)
+  require(dplyr)
+  
+  #system("module load bioínfo-tools seidr-devel")
+  com <- paste0("seidr describe -b 100 -q $(seq -s ',' 0.01 0.01 0.99) ", seidrFile)
+  #print(com)
+  result <- system(com, intern=TRUE)
+  
+  #result <- as.data.frame(result, stringsAsFactors = F)
+  result <- str_split_fixed(result, "\t", 5) 
+  result <- as.data.frame(result, stringsAsFactors = F)
+  result <- result %>% filter(V2=='irp' & V3=='HIST') %>% select(V4,V5)
+  names(result) <- c("range", "counts")
+  
+  # clean counts column
+  result$counts <- gsub("#","",result$counts)
+  result$counts <- gsub(" ","",result$counts)
+  result$counts <- as.integer(result$counts)
+  result <- result %>% map_df(rev)
+  result <- result %>% mutate(cumCounts = cumsum(counts))
+  
+  total <- tail(result, 1)$cumCounts
+  onePercent <- floor(total/100)
+  
+  idx <- which(result$cumCounts> onePercent)[1]
+  selLine <- result[idx,]
+  
+  threshold <- as.numeric(str_extract(selLine$range, "([0-1]+\\.[0-9]*)"))
+  
+  return(threshold)
+  
+} 
+```
+
+```{r}
+seidrThreshold <- function(seidrFile, min) {
+  require(stringr)
+  require(tidyverse)
+  require(dplyr)
+  folder <- dirname(seidrFile)
+  outFile <- file.path(folder, "threshold.txt")
+  capture <- system(paste("seidr threshold -n 1000 -m", min, "-M 1.0", seidrFile, "-f -o", outFile, "2>&1"), intern=TRUE)
+  suggestedThreshold <- as.numeric(str_extract(tail(capture,1), "([0-1]+\\.[0-9]*)"))
+  
+
+  
+  thresholdTable <- read.table(outFile, sep='\t', stringsAsFactors = F)
+  names(thresholdTable) <- c("Threshold", "Nodes", "Edges", "SFT", "ACC")
+  thresholdTable <- thresholdTable %>% map_df(rev)
+  sftThreshold <- thresholdTable[which(thresholdTable$SFT > 0.9)[1],]$Threshold
+  
+  result <- list()
+  result$suggestedThreshold <- suggestedThreshold
+  result$sftThreshold <- sftThreshold
+  result$thresholdTable <- thresholdTable
+  return(result)
+  
+}
+```
+
+```{r}
+plotThresholdMetrics <- function(seidrFile, thresholdTable, suggestedThreshold, sftThreshold, title="") {
+  
+  require(ggplot2)
+  require(tibble)
+  
+  outPlot <- file.path(dirname(seidrFile), "threshold.png")
+  plt <- as_tibble(reshape2::melt(thresholdTable, id.vars = c("Threshold")))
+  
+  p <- ggplot(plt, aes(x = Threshold, y = value)) +
+    facet_wrap(~variable, scales = "free_y") + geom_line() +
+    scale_x_reverse() + scale_y_continuous() +
+    geom_vline(aes(xintercept = suggestedThreshold, colour=1)) +
+    geom_vline(aes(xintercept = sftThreshold, colour=2)) +
+    ggtitle(title) +
+    theme(legend.position = "none")
+  
+  png(outPlot,
+      units="px", width=1920, height=1080, res=300)
+  print(p)
+  dev.off()
+  
+  return(p)
+}
+```
+
+```{r}
+seidrApplyThreshold <- function(seidrFile, threshold) {
+  folder <- dirname(seidrFile)
+  outFile <- file.path(folder, "aggregatedThreshold.sf")
+  
+  # removing previous data
+  if (file.exists(outFile)) {
+    file.remove(outFile)
+  }
+  system(paste("seidr view", seidrFile, "-t", threshold, "-b -o", outFile), intern=TRUE)
+  system(paste("seidr reheader", outFile), intern=TRUE)
+}
+```
+
+This chunk can't be executed at the same time as knit generation, it causes conflict with seidr.
+Instead we can run this in Rstudio and then save the object. In a step after we can load the object
+and plot the results.
+
+```{r, message=FALSE, warning=FALSE, eval=F}
+
+tResults <- list() 
+
+sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    cat(paste("<h3>", specie, "-", condition, "</h3>"))
+
+    seidrFile <- file.path(projectDir, specie, "networks", condition, "results/aggregated/aggregated.sf")
+    
+    tResults[[specie]][[condition]]$seidrFile <<- seidrFile
+    
+    # obtain recomended minimal threshold value
+    minThreshold <- seidrDescribe(seidrFile)
+    
+    # obtain threshold values suggested, SFT based values and table
+    thresholdValues <<- seidrThreshold(seidrFile, minThreshold)
+    tResults[[specie]][[condition]]$thresholdValues <- thresholdValues
+    
+    # plot threshold metrics
+    p <- plotThresholdMetrics(seidrFile, thresholdValues$thresholdTable, thresholdValues$suggestedThreshold, thresholdValues$sftThreshold, title = paste(specie, "-", condition))
+    
+    tResults[[specie]][[condition]]$plot <<- p
+    
+    # obtain thresholded seidr file
+    seidrApplyThreshold(seidrFile, thresholdValues$sftThreshold)
+    })
+})
+
+save(tResults, projectDir, species, conditions, file=file.path(projectDir, "thresholdResults.RData"))
+```
+
+```{r loadtResults, message=FALSE, warning=FALSE, results='asis'}
+load(file=file.path(projectDir, "thresholdResults.RData"))
+
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    cat(paste("<h3>", specie, "-", condition, "</h3>"))
+    print(tResults[[specie]][[condition]]$plot)
+    #tResults[[specie]][[condition]]$seidrFile
+  })
+})
+```
+
+
+# Network clustering
+For each network, we will first some parameters, like folder location of the Seidr file, the markov-time parameter we found acceptable for clustering, the index edge file obtained from Seidr.
+
+```{r getEdgeIndex, message=FALSE, warning=FALSE}
+#load(file=file.path(projectDir, "thresholdResults.RData"))
+
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    #cat(paste("<h3>", specie, "-", condition, "</h3>"))
+
+    # get subfolder
+    folder <- dirname(tResults[[specie]][[condition]]$seidrFile)
+    seidrFile <- file.path(folder, "aggregatedThreshold.sf")
+    
+    # create the names of the files for Infomap
+    edgeIndexFile <- file.path(folder, "indexEdgeList.txt")
+    edgeFile <- file.path(folder, "edgeList.txt")
+    treeFile <- file.path(folder,"indexEdgeList.tree")
+    
+    # get the index for the irp_score in Seidr view (it might different depending on how many methods are used)
+    headResult <- system(paste("seidr view", seidrFile, "-c -d $'\t' ", "| head -n 1"), intern=TRUE)
+    headResult <- unlist(strsplit(headResult, "\t"))
+    algoIndex <- grep("irp_score", headResult)
+    
+    # 
+    system(paste0("seidr view ", seidrFile, "  -d $'\t' | cut -f 1,2,",algoIndex, " > ",edgeFile), intern=TRUE)
+    system(paste0("seidr view ", seidrFile, " -N -d $'\t' | cut -f 1,2,",algoIndex," >",edgeIndexFile), intern=TRUE)
+    
+    tResults[[specie]][[condition]]$edgeIndexFile <<- edgeIndexFile
+    tResults[[specie]][[condition]]$edgeFile <<- edgeFile
+    tResults[[specie]][[condition]]$treeFile <<- treeFile
+    #tResults[[specie]][[condition]]$seidrFile
+  })
+})
+```
+
+```{r infomapCall, eval=F}
+runInfomap <- function(seidrFile, edgeIndexFile, treeFile, markovTime=1, folder) {
+  
+  
+  system(paste("Infomap", edgeIndexFile,"-z --markov-time", markovTime, folder))
+  infomapRes <- system(paste("seidr resolve -s", seidrFile, treeFile), intern=TRUE)
+  infomapTable <-data.frame(do.call(rbind, strsplit(infomapRes, "\t")))
+  infomapTable <- prepareData(infomapTable)
+  infomapTable$gene <- gsub("\r","",infomapTable$gene)
+  infomapTable$Level1 <- infomapTable$P1
+  infomapTable$Level2 <- paste0(infomapTable$Level1,":",infomapTable$P2)
+  infomapTable$Level2 <- ifelse(infomapTable$Level2 %like% "NA", NA, infomapTable$Level2)
+
+  if("P3" %in% colnames(infomapTable)) {
+    infomapTable$Level3 <- paste0(infomapTable$Level1,":",infomapTable$P2, ":",infomapTable$P3)
+    infomapTable$Level3 <- ifelse(infomapTable$Level3 %like% "NA", NA, infomapTable$Level3)
+  }
+  return(infomapTable)
+}
+```
+
+
+```{r}
+
+infomapResults <- list() 
+
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    folder <- dirname(tResults[[specie]][[condition]]$seidrFile)
+    seidrFile <- file.path(folder, "aggregatedThreshold.sf")
+    edgeIndexFile <- tResults[[specie]][[condition]]$edgeIndexFile
+    treeFile <- tResults[[specie]][[condition]]$treeFile
+
+    infomapTable <- runInfomap(seidrFile, edgeIndexFile, treeFile, markovTime=1, folder) 
+    
+    infomapResults[[specie]][[condition]]$infomapTable <<- infomapTable
+    infomapResults[[specie]][[condition]]$level1percent <<- clusterQA(infomapTable, level='Level1')
+    infomapResults[[specie]][[condition]]$level2percent <<- clusterQA(infomapTable, level='Level2')
+    
+    if("P3" %in% colnames(infomapTable)) {
+      infomapResults[[specie]][[condition]]$level3percent <<- clusterQA(infomapTable, level='Level3')
+    }
+    
+  })
+})
+
+```
+
+```{r}
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    print(paste("Level1 %", infomapResults[[specie]][[condition]]$level1percent, "-", "Level2 %", infomapResults[[specie]][[condition]]$level2percent))
+  })
+})
+```
+The goal is to obtain ~50-60% of the genes in the top 20 clusters. Some of the candidates don't match our criteria. We need to focus individually in them and play with the markov-time parameter to match our criteria.
+
+The candidates to recluster are:
+
+"cenococcum_geophilum - control"
+"cenococcum_geophilum - combined"
+"cortinarius_glaucopus - control"
+"hyaloscypha_variabilis - control"
+"hyaloscypha_variabilis - combined"
+"hyaloscypha_bicolor - control"
+"piloderma_croceum - control"
+
+Valid candidates
+"cortinarius_glaucopus - combined" -> level2
+"hyaloscypha_bicolor - combined" -> level1  
+"piloderma_croceum - combined" -> leve2
+
+
+## Recluster
+```{r}
+reCluster <- function(specie, condition, markovTime){
+    folder <- dirname(tResults[[specie]][[condition]]$seidrFile)
+    seidrFile <- file.path(folder, "aggregatedThreshold.sf")
+    edgeIndexFile <- tResults[[specie]][[condition]]$edgeIndexFile
+    treeFile <- tResults[[specie]][[condition]]$treeFile
+
+    infomapTable <- runInfomap(seidrFile, edgeIndexFile, treeFile, markovTime, folder) 
+    
+    results <- list()
+    results$infomapTable <- infomapTable
+    results$level1percent <- clusterQA(infomapTable, level='Level1')
+    results$level2percent <- clusterQA(infomapTable, level='Level2')
+    print(paste("Level1 %", results$level1percent, "-", "Level2 %", results$level2percent))
+    if("P3" %in% colnames(infomapTable)) {
+      results$level3percent <- clusterQA(infomapTable, level='Level3')
+      print(paste("Level1 %", results$level1percent, "-", "Level2 %", results$level2percent, "-", "Level3 %", results$level3percent))
+    }
+    
+    return(results)
+  }
+```
+
+For each candidate we will try to find a better markov-time to match our criteria
+
+### "cenococcum_geophilum - control"
+```{r, eval=FALSE}
+  infomapPartialResults <- reCluster("cenococcum_geophilum", "control", 1.5)
+  infomapResults$cenococcum_geophilum$control <- infomapPartialResults
+```
+
+"cenococcum_geophilum - combined"
+```{r, eval=FALSE}
+  infomapPartialResults <- reCluster("cenococcum_geophilum", "combined", 1.164)
+  infomapResults$cenococcum_geophilum$combined <- infomapPartialResults
+```
+
+
+"cortinarius_glaucopus - control"
+No better parameters found, we keep markov-time = 1 and take level 3 clusters
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+  infomapPartialResults <- reCluster("cortinarius_glaucopus", "control", 1)
+  infomapResults$cortinarius_glaucopus$control <- infomapPartialResults
+```
+
+"hyaloscypha_variabilis - control"
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+  infomapPartialResults <- reCluster("hyaloscypha_variabilis", "control", 1.3)
+  infomapResults$hyaloscypha_variabilis$control <- infomapPartialResults
+```
+"hyaloscypha_variabilis - combined"
+We keep level2
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+  infomapPartialResults <- reCluster("hyaloscypha_variabilis", "combined", 1.2)
+  infomapResults$hyaloscypha_variabilis$combined <- infomapPartialResults
+```
+
+"hyaloscypha_bicolor - control"
+We keep level2
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+  infomapPartialResults <- reCluster("hyaloscypha_bicolor", "control", 1.3)
+  infomapResults$hyaloscypha_bicolor$control <- infomapPartialResults
+```
+
+"piloderma_croceum - control"
+We keep level3
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+  infomapPartialResults <- reCluster("piloderma_croceum", "control", 1.2)
+  infomapResults$piloderma_croceum$control <- infomapPartialResults
+```
+
+```{r eval=FALSE, include=FALSE}
+save(infomapResults, projectDir, species, conditions, file=file.path(projectDir, "infomapResults.RData"))
+```
+
+```{r eval=T, include=FALSE}
+load(file=file.path(projectDir, "infomapResults.RData"))
+```
+
+
+We can check again if all networks have at least one level matching the criteria
+
+```{r}
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    if("level3percent" %in% names(infomapResults[[specie]][[condition]])){
+      print(paste("Level1 %", infomapResults[[specie]][[condition]]$level1percent, "-", 
+                  "Level2 %", infomapResults[[specie]][[condition]]$level2percent,"-", 
+                  "Level3 %", infomapResults[[specie]][[condition]]$level3percent))
+    } else {
+      print(paste("Level1 %", infomapResults[[specie]][[condition]]$level1percent, "-", "Level2 %", infomapResults[[specie]][[condition]]$level2percent))
+    }
+    
+  })
+})
+```
+
+## Choose level
+We upgrade the result list with the chosen level
+```{r}
+infomapResults$cenococcum_geophilum$control$clusterLevel <- "Level1"
+infomapResults$cenococcum_geophilum$combined$clusterLevel <- "Level1"
+
+infomapResults$cortinarius_glaucopus$control$clusterLevel <- "Level3"
+infomapResults$cortinarius_glaucopus$combined$clusterLevel <- "Level2"
+
+infomapResults$hyaloscypha_variabilis$control$clusterLevel <- "Level1"
+infomapResults$hyaloscypha_variabilis$combined$clusterLevel <- "Level1"
+
+infomapResults$hyaloscypha_bicolor$control$clusterLevel <- "Level2"
+infomapResults$hyaloscypha_bicolor$combined$clusterLevel <- "Level1"
+
+infomapResults$piloderma_croceum$control$clusterLevel <- "Level3"
+infomapResults$piloderma_croceum$combined$clusterLevel <- "Level2"
+```
+
+## Obtain clusters
+Loop again to obtain the number of cluster by min size.
+Initially we put a min size of 20 genes per cluster
+```{r}
+minSize=20
+
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    
+    selectedClusters <- getClusterByMinSize(infomapResults[[specie]][[condition]]$infomapTable, 
+                                            level= infomapResults[[specie]][[condition]]$clusterLevel,
+                                            min=minSize)
+    
+    infomapResults[[specie]][[condition]]$selectedClusters <<-selectedClusters
+
+     print(selectedClusters)
+  })
+})
+```
+
+With a minimal value of 20 genes per cluster we get more than 17 clusters per network, we can proceed to extract them and export the results.
+In order to get a manageable amount of clusters, we are going to limit the results to 30 clusters 
+
+```{r}
+maxClusters <- 30
+
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    
+    folder <- dirname(tResults[[specie]][[condition]]$seidrFile)
+    
+    theClusters <- getClusters(infomapResults[[specie]][[condition]]$infomapTable, 
+                               level= infomapResults[[specie]][[condition]]$clusterLevel, 
+                               numberOfClusters= ifelse(infomapResults[[specie]][[condition]]$selectedClusters < maxClusters,
+                                                        infomapResults[[specie]][[condition]]$selectedClusters, maxClusters))
+    
+    # level 3 present some NA due to not having a gene in that level, they need to be removed
+    theClusters <- lapply(theClusters, function(x){x<-x[!is.na(x)]})
+    
+    infomapResults[[specie]][[condition]]$clusters <<- theClusters
+    save4Cytoscape(theClusters, file=file.path(folder,"infomapClusters.tsv"))
+
+    
+  })
+})
+
+
+```
+
+ONLY level1 clustering, for pahte visualization
+```{r}
+minSize=20
+maxClusters <- 30
+
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    
+    selectedClusters <- getClusterByMinSize(infomapResults[[specie]][[condition]]$infomapTable, 
+                                            level= 'Level1',
+                                            min=minSize)
+    
+    infomapResults[[specie]][[condition]]$selectedClusters <<-selectedClusters
+
+    folder <- dirname(tResults[[specie]][[condition]]$seidrFile)
+    
+    theClusters <- getClusters(infomapResults[[specie]][[condition]]$infomapTable, 
+                               level= infomapResults[[specie]][[condition]]$clusterLevel, 
+                               numberOfClusters= ifelse(infomapResults[[specie]][[condition]]$selectedClusters < maxClusters,
+                                                        infomapResults[[specie]][[condition]]$selectedClusters, maxClusters))
+    
+    # level 3 present some NA due to not having a gene in that level, they need to be removed
+    theClusters <- lapply(theClusters, function(x){x<-x[!is.na(x)]})
+    
+    infomapResults[[specie]][[condition]]$clusters <<- theClusters
+    save4Cytoscape(theClusters, file=file.path(folder,"infomapClustersLevel1.tsv"))
+
+    
+  })
+})
+```
+
+
+# Profile splitting
+
+Adding the paths for the data
+```{r}
+
+infomapResults$cenococcum_geophilum$control$data <- file.path(projectDir, "cenococcum_geophilum",  "DE", "controlVsdData.RData")
+infomapResults$cenococcum_geophilum$combined$data <- file.path(projectDir, "cenococcum_geophilum",  "DE", "combinedVsdData.RData")
+
+infomapResults$cortinarius_glaucopus$control$data <- file.path(projectDir, "cortinarius_glaucopus",  "DE", "controlVsdData.RData")
+infomapResults$cortinarius_glaucopus$combined$data <- file.path(projectDir, "cortinarius_glaucopus",  "DE", "combinedVsdData.RData")
+
+infomapResults$hyaloscypha_variabilis$control$data <- file.path(projectDir, "hyaloscypha_variabilis", "DE", "controlVsdData.RData")
+infomapResults$hyaloscypha_variabilis$combined$data <- file.path(projectDir, "hyaloscypha_variabilis",  "DE", "combinedVsdData.RData")
+
+infomapResults$hyaloscypha_bicolor$control$data <- file.path(projectDir, "hyaloscypha_bicolor", "DE","controlVsdData.RData")
+infomapResults$hyaloscypha_bicolor$combined$data <- file.path(projectDir, "hyaloscypha_bicolor", "DE", "combinedVsdData.RData")
+
+infomapResults$piloderma_croceum$control$data <- file.path(projectDir, "piloderma_croceum", "DE", "controlVsdData.RData")
+infomapResults$piloderma_croceum$combined$data <- file.path(projectDir, "piloderma_croceum", "DE","combinedVsdData.RData")
+```
+
+
+```{r splitClusters}
+splitClusters <- function(infomapClusters, data) {
+  
+  result <- list()
+  
+  None <- sapply(names(infomapClusters), function(cluster){
+    
+    posCluster <- cluster
+    negCluster <- paste0(cluster,"i")
+    
+    res <- getEigenGenes(data, infomapClusters[[cluster]])
+    
+    result[[posCluster]] <<- res$positive
+    result[[negCluster]] <<- res$negative
+
+  })
+  
+  
+  return(result)
+
+}
+
+```
+
+```{r }
+None <- sapply(species, function(specie) {
+  sapply(conditions, function(condition) {
+    print(paste(specie, "-", condition))
+    
+    folder <- dirname(tResults[[specie]][[condition]]$seidrFile)
+    
+    load(infomapResults[[specie]][[condition]]$data)
+    thisData <- NA
+    if (condition == "control")
+      thisData <- controlData
+    if (condition == "combined")
+      thisData <- combinedData
+    
+    splitRes <- splitClusters(infomapResults[[specie]][[condition]]$clusters, thisData)
+
+    res <- melt(splitRes)
+
+    names(res) <- c("gene","cluster")
+    
+    infomapResults[[specie]][[condition]]$splitClusters <<- res
+    
+    write.table(res, file=file.path(folder,"splitedClusters.tsv"), sep='\t', row.names = F, quote = F)
+
+  })
+})
+```
+
+```{r}
+save(infomapResults, projectDir, species, conditions, file=file.path(projectDir, "infomapFinalResults.RData"))
+```
+
+
+```{r}
+
+```
+

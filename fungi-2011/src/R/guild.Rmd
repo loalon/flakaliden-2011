@@ -1,0 +1,730 @@
+---
+title: "Guild PCA"
+author: "Alonso Serrano"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+   toc: true
+   number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library("DESeq2")
+# library(vegan)
+# library(ape)
+library(dplyr)
+library(ggfortify)
+library(plotly)
+source('~/Git/UPSCb-common/src/R/gopher.R')
+source("~/Git/Rtoolbox/src/plotEnrichedTreemap.R")
+source("~/Git/Rtoolbox/src/plotUpAndDown.R")
+```
+
+```{r}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011"
+deFolder <- file.path(projectFolder,"DE")
+dataFolder <- file.path(projectFolder,"data")
+guildFile <- file.path(dataFolder, "fungi.guilds.tsv")
+rawFile <- file.path(dataFolder, "kingdom.Fungi.2011.raw.tsv")
+metaFile <- file.path(dataFolder, "meta.tsv")
+taxonomyFile <- file.path(dataFolder, "gene_taxonomy.tsv")
+```
+
+# Read guild file
+```{r}
+data <- read.table(rawFile, header = T, sep='\t', comment.char = "", quote="", row.names = 1, stringsAsFactors = F)
+colnames(data)<-gsub("X", "", colnames(data))
+
+meta <- read.table(metaFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = F)
+
+meta$Treatment <- ifelse(meta$Condition == 'control', 'C', 'F')
+meta$Week <- meta$Sampling.date..week..
+meta$Time <- substr(meta$Sampling.date..week.., 2,3)
+meta$group <- paste0(meta$Week, gsub("T","F",meta$Plot))
+meta <- meta[order(meta$group), ]
+meta$group <- substr(meta$group, 1, 4)
+meta$group <- as.factor(meta$group)
+meta$Treatment <- as.factor(meta$Treatment)
+
+#' #remove non usefull samples
+data <- data[,colnames(data) %in% meta$Sample.ID]
+
+#' #Order them by group
+data <- data[, match(meta$Sample.ID, colnames(data))]
+
+#' change the names of the samples to group
+colnames(data) <- paste0(meta$Sampling.date..week..,meta$Plot)
+
+#control data
+controlData <- data[,grepl('C',(colnames(data)))]
+
+# fertilised data
+fertilisedData <- data[,grepl('F',(colnames(data)))]
+
+
+#data <- data[(rowSums(data) > 0),]
+guilds <- read.table(guildFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = F)
+taxo <- read.table(taxonomyFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = FALSE)
+
+
+
+```
+
+```{r}
+plotNicePCA <- function(data, colorFactor, alphaFactor=NULL, colorMap, alphaMap=NULL, x=PC1, y=PC2) {
+  g <- NA
+  
+  if(is.null(alphaFactor)){
+    g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=time))
+  }
+    
+}
+g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=time)) +
+  geom_point(size = 0.01) +
+  scale_color_manual(values=timeColors) +
+  xlab(percentage[1]) +
+  ylab(percentage[2]) +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+png(paste0("generalFungiPCA_time",".png"), 
+  units="px", width=1920, height=1080, res=300)
+g
+dev.off()
+```
+
+
+Trophic modes are: 
+Symbiotroph, Saprotroph, Pathotroph-Saprotroph, Pathotroph-Saprotroph-Symbiotroph, Pathotroph, Saprotroph-Symbiotroph, Pathotroph-Symbiotroph, Saprotroph-Pathotroph-Symbiotroph
+
+```{r}
+trophicModes <- c("Symbiotroph", "Saprotroph", "Pathotroph-Saprotroph",
+                  "Pathotroph-Saprotroph-Symbiotroph", "Pathotroph",
+                  "Saprotroph-Symbiotroph", "Pathotroph-Symbiotroph",
+                  "Saprotroph-Pathotroph-Symbiotroph")
+```
+
+
+```{r generalPCA, eval=FALSE}
+
+  ddsGroupMatrix <- DESeqDataSetFromMatrix(data, colData=meta, design = ~group)
+  vsd.Group.QA <- varianceStabilizingTransformation(ddsGroupMatrix, blind=TRUE)
+  
+  assay(vsd.Group.QA) <- assay(vsd.Group.QA) - min(assay(vsd.Group.QA))
+  
+  vsd.Group.matrix <- assay(vsd.Group.QA)
+save(vsd.Group.matrix, file="vsd.Group.QA.RData")
+#vsd.QA.t <- (assay(vsd.QA))
+pca <- prcomp(vsd.Group.QA)
+
+#match pca with taxo
+pca.df <- data.frame(gene = rownames(pca$x), pca$x ,stringsAsFactors = F)
+PCAvalues <- left_join(pca.df, taxo, by="gene")
+PCAvalues <- left_join(PCAvalues, guilds, by="gene")
+
+PCAvalues <- left_join(PCAvalues, dataPrime, by="gene")
+# Extract loadings of the variables
+PCAloadings <- data.frame(Variables = rownames(pca$rotation), pca$rotation)
+percentage <- round(pca$sdev^2 / sum(pca$sdev^2) * 100, 2)
+percentage <- paste( colnames(pca$x), "(", paste( as.character(percentage), "%", ")", sep="") )
+
+
+```
+```{r}
+# ddsGroup <- DESeq(ddsMatrix)
+```
+```{r}
+# source("~/Git/Rtoolbox/src/utilsDE.r")
+# controlVector <- as.character(unique(meta$group[grep("C", meta$group)]))
+# fertilisedVector <- as.character(unique(meta$group[grep("F", meta$group)]))
+# 
+# combined.res <- mapply(getRes, fertilisedVector, controlVector, 
+# MoreArgs = list(localDDS=ddsGroup, group="group"))
+# 
+# names(combined.res) <- c("19Fvs19C", "20Fvs20C", "21Fvs21C", "22Fvs22C",
+#                       "23Fvs23C", "24Fvs24C", "25Fvs25C", "26Fvs26C",
+#                       "28Fvs28C", "31Fvs31C", "32Fvs32C", "34Fvs34C",
+#                       "35Fvs35C", "36Fvs36C", "37Fvs37C", "38Fvs38C",
+#                       "39Fvs39C", "40Fvs40C", "41Fvs41C")
+# combined.res.filter <- lapply(combined.res, filterDE)
+# 
+# plotUpAndDown(combined.res.filter)
+
+
+```
+```{r DESeqTreatment}
+# ddsMatrix <- DESeqDataSetFromMatrix(data, colData=meta, design = ~Treatment)
+# vsd.QA <- varianceStabilizingTransformation(ddsMatrix, blind=TRUE)
+# 
+# assay(vsd.QA) <- assay(vsd.QA) - min(assay(vsd.QA))
+# 
+# vsd.Treatment.matrix <- assay(vsd.QA)
+# save(vsd.Treatment.matrix, file="vsd.Treatment.QA.RData")
+# 
+# ddsFungiTreatment <- DESeq(ddsMatrix)
+# 
+# resFungiTreatment <- results(ddsTreatment,
+#         name= "Treatment_F_vs_C",
+#         filter = rowMedians(counts(ddsTreatment)),
+#         parallel = FALSE)
+# 
+# save(ddsFungiTreatment, resFungiTreatment, file="/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/DE/ddsTreatment.RData")
+
+```
+
+```{r}
+# controlVector <- as.character(unique(meta$group[grep("C", meta$group)]))
+# fertilisedVector <- as.character(unique(meta$group[grep("F", meta$group)]))
+# 
+# combined.res <- mapply(getRes, fertilisedVector, controlVector, 
+#                        MoreArgs = list(localDDS=ddsGroup, group="group"))
+# 
+# names(combined.res) <- c("19Fvs19C", "20Fvs20C", "21Fvs21C", "22Fvs22C",
+#                       "23Fvs23C", "24Fvs24C", "25Fvs25C", "26Fvs26C",
+#                       "28Fvs28C", "31Fvs31C", "32Fvs32C", "34Fvs34C",
+#                       "35Fvs35C", "36Fvs36C", "37Fvs37C", "38Fvs38C",
+#                       "39Fvs39C", "40Fvs40C", "41Fvs41C")
+
+```
+
+
+```{r calculateLoadingAvg}
+scale=1
+var.scale = scale
+nobs.factor <- sqrt(nrow(pca$x) - 1)
+v <- pca$rotation
+d <- pca$sdev
+u <- sweep(pca$x, 2, 1 / (d * nobs.factor), FUN = '*')
+v <- sweep(v, 2, d^var.scale, FUN='*')
+df.v <- v[,1:2]
+obs.scale = 1
+df.u <- as.data.frame(sweep(u[,1:2], 2, d[1:2]^obs.scale, FUN='*'))
+names(df.u) <- c('xvar', 'yvar')
+colnames(df.v) <- c('xvar', 'yvar')
+df.u <- df.u * nobs.factor
+r <- sqrt(qchisq(0.69, df = 2)) * prod(colMeans(df.u^2))^(1/4)
+v.scale <- rowSums(v^2)
+df.v <- r * df.v / sqrt(max(v.scale))
+
+controlLoadings <- df.v[grepl('C', rownames(df.v)),]
+#controlLoadings <- controlLoadings[ , !(names(controlLoadings) %in% "Variables")]
+controlLoadings <- colMeans(controlLoadings)
+fertilisedLoadings <- df.v[grepl('F', rownames(df.v)),]
+#fertilisedLoadings <- fertilisedLoadings[ , !(names(fertilisedLoadings) %in% "Variables")]
+fertilisedLoadings <- colMeans(fertilisedLoadings)
+newLoadings <- rbind(controlLoadings, fertilisedLoadings)
+rownames(newLoadings) <- c("Control", "Fertilised")
+newLoadings <- data.frame(newLoadings)
+ 
+# c19 <- colMeans(df.v[grepl('19', rownames(df.v)),])
+# c20 <- colMeans(df.v[grepl('20', rownames(df.v)),])
+# c21 <- colMeans(df.v[grepl('21', rownames(df.v)),])
+# c22 <- colMeans(df.v[grepl('22', rownames(df.v)),])
+# c23 <- colMeans(df.v[grepl('23', rownames(df.v)),])
+# c24 <- colMeans(df.v[grepl('24', rownames(df.v)),])
+# c25 <- colMeans(df.v[grepl('25', rownames(df.v)),])
+# c26 <- colMeans(df.v[grepl('26', rownames(df.v)),])
+# c28 <- colMeans(df.v[grepl('28', rownames(df.v)),])
+# c31 <- colMeans(df.v[grepl('31', rownames(df.v)),])
+# c32 <- colMeans(df.v[grepl('32', rownames(df.v)),])
+# c34 <- colMeans(df.v[grepl('34', rownames(df.v)),])
+# c35 <- colMeans(df.v[grepl('35', rownames(df.v)),])
+# c36 <- colMeans(df.v[grepl('36', rownames(df.v)),])
+# c37 <- colMeans(df.v[grepl('37', rownames(df.v)),])
+# c38 <- colMeans(df.v[grepl('38', rownames(df.v)),])
+# c39 <- colMeans(df.v[grepl('39', rownames(df.v)),])
+# c40 <- colMeans(df.v[grepl('40', rownames(df.v)),])
+# c41 <- colMeans(df.v[grepl('41', rownames(df.v)),])
+# 
+# newLoadings <- rbind(c19, c20,c21,c22,c23,c24,c25,c26,c28,c31,c32,c34,
+#                      c35,c36,c37,c38,c39,c40,c41)
+# rownames(newLoadings) <- c("19", "20","21","22","23","24","25","26","28","31","32","34",
+#                      "35","36","37","38","39","40","41")
+# newLoadings <- data.frame(newLoadings)
+
+
+```
+
+```{r generalTaxoPCA, eval=T}
+# general PCA
+
+g <- ggplot(PCAvalues, aes(x = PC1, y = PC2)) +
+  geom_point(size = 0.01) +
+  xlab(percentage[1]) +
+  ylab(percentage[2]) +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+png(paste0("generalFungiPCA",".png"), 
+  units="px", width=1920, height=1080, res=300)
+g
+dev.off()
+
+g2 <-  g +
+  geom_segment( data= newLoadings,
+                aes(x = 0, y = 0, xend = newLoadings$xvar*5, yend = newLoadings$yvar*5),
+                arrow = arrow(length = unit(1/2, "picas")),
+                color = "red", size = 1) +
+        annotate("text", x = (newLoadings$xvar*5), y = (newLoadings$yvar*5),
+      label = rownames(newLoadings), colour = "red",size = 5) 
+
+png(paste0("generalFungiPCALoadings.png"), 
+  units="px", width=1920, height=1080, res=300)
+g2
+ dev.off()
+```
+```{r generalTreatmentPCA, eval=T}
+# general PCA
+
+g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=treatment)) +
+  geom_point(size = 0.01) +
+  xlab(percentage[1]) +
+  ylab(percentage[2]) +
+  scale_color_manual(values=c("C"="#009444","F"="#BE9230")) +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+png(paste0("generalFungiPCA_treatment",".png"), 
+  units="px", width=1920, height=1080, res=300)
+g
+dev.off()
+
+# g2 <-  g +
+#   geom_segment( data= newLoadings,
+#                 aes(x = 0, y = 0, xend = newLoadings$xvar*5, yend = newLoadings$yvar*5),
+#                 arrow = arrow(length = unit(1/2, "picas")),
+#                 color = "red", size = 1) +
+#         annotate("text", x = (newLoadings$xvar*5), y = (newLoadings$yvar*5),
+#       label = rownames(newLoadings), colour = "red",size = 5) 
+# 
+# png(paste0("generalFungiPCALoadings.png"), 
+#   units="px", width=1920, height=1080, res=300)
+# g2
+#  dev.off()
+```
+```{r generalTimePCA, eval=T}
+# general PCA
+timeColors <- rainbow(19)
+names(timeColors) <- sort(unique(PCAvalues$time))
+
+g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=time)) +
+  geom_point(size = 0.01) +
+  scale_color_manual(values=timeColors) +
+  xlab(percentage[1]) +
+  ylab(percentage[2]) +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+png(paste0("generalFungiPCA_time",".png"), 
+  units="px", width=1920, height=1080, res=300)
+g
+dev.off()
+
+# g2 <-  g +
+#   geom_segment( data= newLoadings,
+#                 aes(x = 0, y = 0, xend = newLoadings$xvar*5, yend = newLoadings$yvar*5),
+#                 arrow = arrow(length = unit(1/2, "picas")),
+#                 color = "red", size = 1) +
+#         annotate("text", x = (newLoadings$xvar*5), y = (newLoadings$yvar*5),
+#       label = rownames(newLoadings), colour = "red",size = 5) 
+# 
+# png(paste0("generalFungiPCALoadings.png"), 
+#   units="px", width=1920, height=1080, res=300)
+# g2
+#  dev.off()
+```
+```{r}
+familyColors <- rep("#000000", length(unique(PCAvalues$family)))
+names(familyColors) <- unique(PCAvalues$family)
+
+familyColors["Cortinariaceae"]<- "#A4D171"
+familyColors["Gloniaceae"]<-  "#009AA9"
+familyColors["Atheliaceae"]<-  "#60B266"
+familyColors["Hyaloscyphaceae"]<-  "#9BAEC6"
+
+familyTransparency<- vector(mode = "integer", length(unique(PCAvalues$family)))
+names(familyTransparency) <- unique(PCAvalues$family)
+
+```
+
+
+
+```{r}
+families <- c("Cortinariaceae","Gloniaceae","Atheliaceae","Hyaloscyphaceae")
+lapply(families, function(fam){
+  print(fam)
+  myTransparency <- ifelse(names(familyTransparency)==fam, 1, 0)
+  names(myTransparency) <- names(familyTransparency)
+  
+  g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=family, alpha=family)) +
+    geom_point(size = 0.01) +
+    xlab(percentage[1]) +
+    ylab(percentage[2]) +
+    scale_alpha_manual(values = myTransparency) +
+    scale_color_manual(values=familyColors) +
+    theme(axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          legend.position = "none") +
+     labs(title=fam)
+
+  png(paste0("taxo_family_",fam,".png"), units="px", width=1920, height=1080, res=300)
+  print(g)
+  dev.off()
+
+    
+      g2 <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=family, alpha=family)) +
+        geom_segment( data= newLoadings,
+                  aes(x = 0, y = 0, xend = xvar*5, yend = yvar*5),
+                  arrow = arrow(length = unit(1/2, "picas")),
+                  color = "red", size = 1) +
+    geom_point(size = 0.01) +
+    xlab(percentage[1]) +
+    ylab(percentage[2]) +
+    scale_alpha_manual(values = myTransparency) +
+    scale_color_manual(values=familyColors) +
+    theme(axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          legend.position = "none") +
+     labs(title=fam)
+
+      g2 <- g + geom_segment(aes(x = 0, y = 0, 
+                           xend = newLoadings$xvar[1]*5,
+                           yend = newLoadings$yvar[1]*5),
+                       arrow = arrow(length = unit(1/2, "picas")),
+                       color = "red", size = 1) +
+  geom_segment(aes(x = 0, y = 0, 
+                   xend = newLoadings$xvar[2]*5,
+                   yend = newLoadings$yvar[2]*5),
+               arrow = arrow(length = unit(1/2, "picas")),
+               color = "red", size = 1) +
+           annotate("text", x = (newLoadings$xvar*5), y = (newLoadings$yvar*5),
+                     label = rownames(newLoadings), colour = "red",size = 5)
+  png(paste0("taxo_family_",fam,"_loadings", ".png"), units="px", width=1920, height=1080, res=300)
+  print(g2)
+  dev.off()
+
+  # png(paste0("fertilised-",cosa,".png"), 
+  #  units="px", width=1920, height=1080, res=300)
+  # print(g)
+  #  dev.off()
+  
+})
+```
+
+
+```{r}
+trophic.modes <- c("Pathotroph","Pathotroph-Saprotroph",
+           "Pathotroph-Saprotroph-Symbiotroph","Pathotroph-Symbiotroph",
+           "Saprotroph","Saprotroph-Pathotroph-Symbiotroph",
+           "Saprotroph-Symbiotroph","Symbiotroph", "-")
+trophicColors=c("#DB3832", "#E26D38",
+             "#3F2313", "#764693",
+             "#FEDD4F", "#00FF00",
+             "#459E55","#264294", "#000000")
+
+names(trophicColors) <- trophic.modes
+
+trophicTransparency<- vector(mode = "integer", length(unique(PCAvalues$Trophic.Mode)))
+names(trophicTransparency) <- trophic.modes
+
+```
+
+```{r generalTMPCA}
+
+trophicTransparency<- c(1,1,1,1,1,1,1,1,0)
+names(trophicTransparency) <- trophic.modes
+
+  g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=Trophic.Mode, alpha=Trophic.Mode)) +
+    geom_point(size = 0.01) +
+    xlab(percentage[1]) +
+    ylab(percentage[2]) +
+    scale_alpha_manual(values = trophicTransparency) +
+    scale_color_manual(values=trophicColors) +
+    theme(axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(), 
+          legend.position = "none") +
+     labs(title="Trophic modes PCA")
+
+  png(paste0("generalTrophicModePCA.png"), units="px", width=1920, height=1080, res=300)
+  print(g)
+  dev.off()
+
+```
+
+```{r}
+
+lapply(trophic.modes, function(fam){
+  print(fam)
+  myTransparency <- ifelse(names(trophicTransparency)==fam, 1, 0)
+  names(myTransparency) <- names(trophicTransparency)
+  
+  g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=Trophic.Mode, alpha=Trophic.Mode)) +
+    geom_point(size = 0.01) +
+    xlab(percentage[1]) +
+    ylab(percentage[2]) +
+    scale_alpha_manual(values = myTransparency) +
+    scale_color_manual(values=trophicColors) +
+    theme(axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          legend.position = "none") +
+     labs(title=fam)
+
+  png(paste0("trophicMode_",fam,".png"), units="px", width=1920, height=1080, res=300)
+  print(g)
+  dev.off()
+
+    # 
+    #   g2 <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=family, alpha=family)) +
+    #     geom_segment( data= newLoadings,
+    #               aes(x = 0, y = 0, xend = xvar*5, yend = yvar*5),
+    #               arrow = arrow(length = unit(1/2, "picas")),
+    #               color = "red", size = 1) +
+    # geom_point(size = 0.01) +
+    # xlab(percentage[1]) +
+    # ylab(percentage[2]) +
+    # scale_alpha_manual(values = myTransparency) +
+    # scale_color_manual(values=familyColors) +
+    # theme(axis.line = element_line(colour = "black"),
+    #       panel.grid.major = element_blank(),
+    #       panel.grid.minor = element_blank(),
+    #       panel.border = element_blank(),
+    #       panel.background = element_blank(),
+    #       legend.position = "none") +
+    #  labs(title=fam)
+
+      g2 <- g + geom_segment(aes(x = 0, y = 0, 
+                           xend = newLoadings$xvar[1]*5,
+                           yend = newLoadings$yvar[1]*5),
+                       arrow = arrow(length = unit(1/2, "picas")),
+                       color = "red", size = 1) +
+  geom_segment(aes(x = 0, y = 0, 
+                   xend = newLoadings$xvar[2]*5,
+                   yend = newLoadings$yvar[2]*5),
+               arrow = arrow(length = unit(1/2, "picas")),
+               color = "red", size = 1) +
+           annotate("text", x = (newLoadings$xvar*5), y = (newLoadings$yvar*5),
+                     label = rownames(newLoadings), colour = "red",size = 5)
+  png(paste0("trophicMode_",fam,"_loadings", ".png"), units="px", width=1920, height=1080, res=300)
+  print(g2)
+  dev.off()
+
+  # png(paste0("fertilised-",cosa,".png"), 
+  #  units="px", width=1920, height=1080, res=300)
+  # print(g)
+  #  dev.off()
+  
+})
+```
+
+Average loading plot experiment
+```{r avgline}
+
+q.x <- mean(newLoadings$xvar)
+q.y <- mean(newLoadings$yvar)
+
+checkPoint <- function(x,y,A,B,C){
+  res <- ((A*x)+(B*y)+C)/(sqrt(A^2+B^2))
+  #res <- abs(res)
+}
+```
+
+```{r}
+#table(PCAvalues$family)
+families <- c("Cortinariaceae","Gloniaceae","Atheliaceae","Hyaloscyphaceae")
+#families <- c("Cortinariaceae")
+lapply(families, function(fam){
+#fam <- c("Cortinariaceae")
+#familyColors[fam]<-  "#0F0F0F"
+
+  print(fam)
+  myTransparency <- ifelse(names(familyTransparency)==fam, 1, 0)
+  names(myTransparency) <- names(familyTransparency)
+  
+  g <- ggplot(PCAvalues, aes(x = PC1, y = PC2, colour=family, alpha=family)) +
+    geom_point(size = 0.01) +
+    xlab(percentage[1]) +
+    ylab(percentage[2]) +
+    scale_alpha_manual(values = myTransparency) +
+    scale_color_manual(values=familyColors) +
+    theme(axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          legend.position = "none") +
+     labs(title=fam)
+
+  decons <- data.frame(gene= g$data$gene,
+                       PC1= g$data$PC1,
+                       PC2= g$data$PC2,
+                       stringsAsFactors = F)
+  
+  decons$pos <- checkPoint(decons$PC1, decons$PC2, 67, (-391), 0)
+  famGenes <- PCAvalues[PCAvalues$family==fam,]$gene
+  # decons$Cdist <- checkPoint(decons$PC1, decons$PC2, newLoadings$xvar[1]*5, newLoadings$yvar[1]*5, 0)
+  # decons$Fdist <- checkPoint(decons$PC1, decons$PC2, newLoadings$xvar[2]*5, newLoadings$yvar[2]*5, 0)
+  # decons$group <- ifelse(decons$Cdist > decons$Fdist, 'C', 'F')
+  # controlFamilyGenes <- intersect(decons[decons$group=='C',]$gene, famGenes)
+  # fertilisedFamilyGenes <- intersect(decons[decons$group=='F',]$gene, famGenes)
+   negativeFamilyGenes <- intersect(decons[(decons$pos<0),]$gene, famGenes) # up, left
+   positiveFamilyGenes <- intersect(decons[(decons$pos>0),]$gene, famGenes) # down, right
+   
+   print(paste("Control", length(positiveFamilyGenes)))
+   print(paste("Fertilised", length(negativeFamilyGenes)))
+   enrpos <- gopher(positiveFamilyGenes, background = famGenes, task = list("ko_pathway","ko","cog","kog"),
+            url="fungi2011", alpha = 0.05)
+
+   enrneg <- gopher(negativeFamilyGenes, background = famGenes, task = list("ko_pathway","ko","cog","kog"),
+            url="fungi2011", alpha = 0.05)
+
+
+   lapply(c("ko_pathway","ko","cog","kog"), function(x){
+     if (!is.null(enrpos[[x]])){
+    png(paste0("taxo_family_",fam,"_control_","enr_", x,".png"), units="px", width=1920, height=1080, res=300)
+    plotEnrichedTreemap(enrpos, enrichment = x, namespace = 'BP',
+                  clusterColor=clusterTreemapColors[1],
+                  clusterText=clusterTreemapText[1],
+                  title = paste(fam, "-",x))
+    dev.off()
+     }
+      if (!is.null(enrneg[[x]])){
+    png(paste0("taxo_family_",fam,"_fertilised_","enr_", x,".png"), units="px", width=1920, height=1080, res=300)
+
+    plotEnrichedTreemap(enrneg, enrichment = x, namespace = 'BP',
+                  clusterColor=clusterTreemapColors[1],
+                  clusterText=clusterTreemapText[1],
+                  title = paste(fam, "-",x))
+
+    dev.off()
+      }
+   })
+  
+})
+```
+
+
+Individual PCA for  Cenococcum geophilum
+```{r}
+load("~/Git/fungi-2011/src/R/megaData.RData")
+
+cenoData <-  megaData[megaData$species == "Cenococcum geophilum",]
+cenoData <- cenoData[,1:112]
+
+rownames(cenoData) <- cenoData[,1]
+cenoData <- cenoData[,-1]
+
+cenoMatrix <- DESeqDataSetFromMatrix(cenoData, colData=meta, design = ~group)
+ceno.vsd.QA <- varianceStabilizingTransformation(cenoMatrix, blind=TRUE)
+assay(ceno.vsd.QA) <- assay(ceno.vsd.QA) - min(assay(ceno.vsd.QA))
+#vsd.QA.t <- (assay(vsd.QA))
+ceno.pca <- prcomp(assay(ceno.vsd.QA))
+
+cenoDF <- data.frame(PC1= ceno.pca$x[,1], PC2 = ceno.pca$x[,2], PC3 = ceno.pca$x[,3], group = rownames(ceno.pca$x),
+                     color=megaData[megaData$species == "Cenococcum geophilum",]$treatment )
+ceno.percents <- round(summary(ceno.pca)$importance[2,]*100)
+
+
+scale=1
+var.scale = scale
+nobs.factor <- sqrt(nrow(ceno.pca$x) - 1)
+v <- ceno.pca$rotation
+d <- ceno.pca$sdev
+u <- sweep(ceno.pca$x, 2, 1 / (d * nobs.factor), FUN = '*')
+v <- sweep(v, 2, d^var.scale, FUN='*')
+df.v <- v[,2:3]
+obs.scale = 1
+df.u <- as.data.frame(sweep(u[,2:3], 2, d[2:3]^obs.scale, FUN='*'))
+names(df.u) <- c('xvar', 'yvar')
+colnames(df.v) <- c('xvar', 'yvar')
+df.u <- df.u * nobs.factor
+r <- sqrt(qchisq(0.69, df = 2)) * prod(colMeans(df.u^2))^(1/4)
+v.scale <- rowSums(v^2)
+df.v <- r * df.v / sqrt(max(v.scale))
+
+controlLoadings <- df.v[grepl('C', rownames(df.v)),]
+#controlLoadings <- controlLoadings[ , !(names(controlLoadings) %in% "Variables")]
+controlLoadings <- colMeans(controlLoadings)
+fertilisedLoadings <- df.v[grepl('F', rownames(df.v)),]
+#fertilisedLoadings <- fertilisedLoadings[ , !(names(fertilisedLoadings) %in% "Variables")]
+fertilisedLoadings <- colMeans(fertilisedLoadings)
+newLoadings <- rbind(controlLoadings, fertilisedLoadings)
+rownames(newLoadings) <- c("Control", "Fertilised")
+newLoadings <- data.frame(newLoadings)
+
+
+p <- plot_ly(cenoDF, x = ~PC1, y = ~PC2, 
+             mode = 'markers', color=~color, colors=c("#009444","#BE9230"),
+             text = ~group, marker = list(opacity = 0.5, sizemode = 'diameter')) %>%
+
+  #add_markers() %>%
+  layout(title = title,
+         xaxis = list(title = paste("PC1 (",ceno.percents[1],"%)",sep="")),
+         yaxis = list(title = paste("PC2 (",ceno.percents[2],"%)",sep=""))
+         
+  )
+
+
+
+#match pca with taxo
+pca.df <- data.frame(gene = rownames(pca$x), pca$x ,stringsAsFactors = F)
+PCAvalues <- left_join(pca.df, taxo, by="gene")
+PCAvalues <- left_join(PCAvalues, guilds, by="gene")
+
+PCAvalues <- left_join(PCAvalues, dataPrime, by="gene")
+# Extract loadings of the variables
+PCAloadings <- data.frame(Variables = rownames(pca$rotation), pca$rotation)
+percentage <- round(pca$sdev^2 / sum(pca$sdev^2) * 100, 2)
+percentage <- paste( colnames(pca$x), "(", paste( as.character(percentage), "%", ")", sep="") )
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

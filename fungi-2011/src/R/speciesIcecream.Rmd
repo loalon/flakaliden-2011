@@ -1,0 +1,61 @@
+---
+title: "Fungi network analysis - Species - ice cream plots"
+author: "Alonso Serrano"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document: 
+    number_sections: yes
+    toc: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Introduction
+
+
+## Prerequisites
+
+
+## Setup
+
+```{r ini, message=FALSE, warning=FALSE}
+# library(RLinuxModules)
+# library(data.table)
+# library(here)
+# library(tidyverse)
+# library(stringr)
+# library(reshape2)
+# module("load bioinfo-tools seidr-devel")
+# module("load bioinfo-tools InfoMap")
+# library(dplyr)
+# source(here("Rtoolbox/src/utilsDE.r"))
+# source(here("/Rtoolbox/src/plot3Dvector.R"))
+# source(here("/Rtoolbox/src/plotVectorPCA.R"))
+# source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
+# source(here("Rtoolbox/src/plotUpAndDown.R"))
+# source(here("UPSCb-common/src/R/gopher.R"))
+# source(here("Rtoolbox/src/getEigengenes.R"))
+# 
+# source("~/Git/Rtoolbox/src/infomapTools.R")
+# source("~/Git/Rtoolbox/src/plotEigenGene.R")
+# source("~/Git/Rtoolbox/src/plotEnrichedTreemap.R")
+# source('~/Git/UPSCb-common/src/R/gopher.R')
+
+projectDir <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/fungi-species"
+species <- c("cenococcum_geophilum","cortinarius_glaucopus","hyaloscypha_variabilis","hyaloscypha_bicolor","piloderma_croceum")
+conditions <- c("control")
+# workDir <- file.path("networks")
+# deDir <- file.path(projectDir,"DE")
+# networkDir <- file.path(projectDir,"networks")
+# background <- read.table(file.path(deDir, "background.txt"), stringsAsFactors = F, header=F)[[1]]
+# load(file.path(deDir, "controlVsdData.RData"))
+#load(file.path(deDir, "fertilisedVsdData.RData"))
+#
+
+#dataFolder<- file.path(projectDir, "data")
+#resultsFolder<- file.path(projectFolder, "reports")
+
+load(file.path("/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/data", "megaData.RData"))
+```

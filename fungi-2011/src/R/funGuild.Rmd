@@ -1,0 +1,82 @@
+---
+title: "funGuild"
+author: "Alonso Serrano"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+   toc: true
+   number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This script contains the necessary steps to obtain the guild for the fungal taxo using the FUNGuild tool
+
+Nguyen NH, Song Z, Bates ST, Branco S, Tedersoo L, Menke J, Schilling JS, Kennedy PG. 2016. FUNGuild: An open annotation tool for parsing fungal community datasets by ecological guild. Fungal Ecology 20:241–248.
+
+*2020-03-23: added the Archaeorhizomcyete data
+
+
+# Load fungi data
+```{r load}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011"
+deFolder <- file.path(projectFolder, "DE")
+dataFolder <- file.path(projectFolder, "data")
+
+taxonomyFile <- file.path(dataFolder, "gene_taxonomy_update.tsv")
+taxo <- read.table(taxonomyFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = FALSE)
+```
+
+# Export data for funGuild
+```{r export}
+
+taxo_df <- data.frame(gene = taxo$gene, taxonomy =apply(taxo[,2:8], 1, paste, collapse = ";" ) )
+write.table(taxo_df, file=file.path(dataFolder, "taxo4funguild.tsv"), quote=F, row.names=F, sep='\t')
+```
+
+# Execute funGuild
+
+To execute funGuild, first we need to clone the repository located in 
+https://github.com/UMNFuN/FUNGuild
+
+The using python 3.6.8 and the file generated before we execute the following command
+
+```
+python Guilds_v1.1.py -otu taxo4funguild.tsv
+
+Execution looks as follows
+FunGuild v1.0 Beta<br>
+Connecting with FUNGuild database ...<br>
+
+Reading in the OTU table: 'taxo4funguild.tsv'
+
+Searching the FUNGuild database...
+10%
+20%
+30%
+40%
+50%
+60%
+70%
+80%
+90%
+100%
+
+Found 114299 matching taxonomy records in the database.
+Dereplicating and sorting the result...
+
+...
+FunGuild tried to assign function to 323012 OTUs in 'taxo4funguild.tsv'.
+FUNGuild made assignments on 176579 OTUs.
+Result saved to 'taxo4funguild.guilds.txt'
+
+Total calculating time: 23371.12 seconds.
+```
+
+```{r sessionInfo}
+sessionInfo()
+```
+
+

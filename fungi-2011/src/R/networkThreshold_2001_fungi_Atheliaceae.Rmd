@@ -1,0 +1,65 @@
+---
+title: "Seidr threshold"
+author: "Alonso Serrano"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+   toc: true
+   number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Setup
+
+```{r ini, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(reshape2)
+library(scales)
+
+library(RLinuxModules)
+library(data.table)
+module("load bioinfo-tools seidr-devel")
+module("load bioinfo-tools InfoMap")
+
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011"
+workDir <- file.path(projectFolder,"Atheliaceae")
+```
+```{r thresholds}
+networks <- c("control", "fertilised")
+seidrThresholds <- c(0.32062, 0.48024)
+eyeThresholds <- c(0.54682, 0.35687)
+```
+
+```{r plot}
+myCols = c("Threshold", "Nodes", "Edges", "SFT", "ACC")
+
+for(net in 1:2) {
+
+  tsv <- read_tsv(file.path(workDir,networks[net],"results/aggregated", "threshold.txt"),
+                col_names = myCols)
+
+  plt <- as_tibble(reshape2::melt(tsv, id.vars = c("Threshold")))
+  
+  z <- ggplot(plt, aes(x = Threshold, y = value)) +
+    facet_wrap(~variable, scales = "free_y") + geom_line() +
+    scale_x_reverse() + scale_y_continuous() +
+    geom_vline(aes(xintercept = seidrThresholds[net], colour=1)) +
+    geom_vline(aes(xintercept = eyeThresholds[net], colour=2)) +
+    ggtitle(paste(networks[net],"network")) +
+    theme(legend.position = "none")
+  print(z)
+}
+```
+
+```{r seidrView, eval=FALSE}
+for(net in 1:2) {
+  seidrFile <- file.path(workDir, networks[net],"results/aggregated","aggregated.sf")
+  system(paste0("seidr view ", seidrFile, " -t ", eyeThresholds[net],
+               " -b -o",file.path(workDir, networks[net],"results/aggregated") ,"/aggregated_", eyeThresholds[net],".sf"), intern=TRUE)
+}
+
+
+```
+

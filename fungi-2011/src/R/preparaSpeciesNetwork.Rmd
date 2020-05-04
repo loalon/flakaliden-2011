@@ -1,0 +1,145 @@
+---
+title: "Species Network"
+author: "Alonso Serrano"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+   toc: true
+   number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library("DESeq2")
+library(pander)
+library(dplyr)
+  library(vsn)
+
+source('~/Git/UPSCb-common/src/R/gopher.R')
+source("~/Git/Rtoolbox/src/plotEnrichedTreemap.R")
+source("~/Git/Rtoolbox/src/plotUpAndDown.R")
+source("~/Git/Rtoolbox/src/plot2DvectorPCA.R")
+```
+
+```{r}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011"
+dataFolder <- file.path(projectFolder,"data")
+load(file.path(dataFolder, "megaData.RData"))
+
+```
+
+```{r}
+
+# speciesQuery <- c("Piloderma croceum", "Cortinarius glaucopus", 
+#                   "Cenococcum geophilum", "Hyaloscypha variabilis", 
+#                   "Hyaloscypha bicolor")
+
+speciesQuery <- c("Piloderma croceum", "Cortinarius glaucopus", 
+                  "Hyaloscypha variabilis", 
+                  "Hyaloscypha bicolor", "Cenococcum geophilum")
+
+#speciesQuery <- "Hyaloscypha bicolor"
+sapply(speciesQuery, function(specie) {
+
+  #specie <- "Hyaloscypha bicolor"
+  outName <- gsub(" ", "_", tolower(specie) )
+  outDir <- file.path(projectFolder, "fungi-species", outName)
+  deFolder <- file.path(outDir, "DE")
+  
+  dir.create(outDir, showWarnings = FALSE)
+  dir.create(deFolder, showWarnings = FALSE)
+  
+  speciesData <- megaData[megaData$species == specie,]
+  
+  species <- speciesData[,c(1:114, 122)]
+  
+  speciesM <- as.matrix(species[,2:112])
+  rownames(speciesM) <- species$gene
+  speciesM<- t(speciesM)
+  #print(dim(speciesM))
+#})
+  speciesMeta <- data.frame(time=substr(rownames(speciesM),2,3), 
+                            treatment=substr(rownames(speciesM),4,4),
+                            group=paste0(substr(rownames(speciesM),2,3),
+                                         substr(rownames(speciesM),4,4)))
+  print(dim(speciesM))
+  print("DESeq")
+  dds <- DESeqDataSetFromMatrix(t(speciesM), colData=speciesMeta, design = ~group)
+  
+  cts <- counts(dds)
+  geoMeans <- apply(cts, 1, function(row){
+    if (all(row == 0)) 
+      0 
+    else 
+      #exp(mean(log(row[row != 0])))
+      exp(sum(log(row[row != 0]))/length(row))
+    })
+  
+  dds <- estimateSizeFactors(dds, geoMeans=geoMeans)
+
+  dds <- dds[(rowSums(counts(dds)) > 0),]
+  print(dim(assay(dds)))
+  #dds <- estimateSizeFactors(dds)
+  # sizes <- sizeFactors(ddsMatrix)
+  # pander(sizes)
+  # boxplot(sizes, main="Sequencing libraries size factor")
+  
+  vsd.QA <- varianceStabilizingTransformation(dds, blind=TRUE)
+  assay(vsd.QA) <- assay(vsd.QA) - min(assay(vsd.QA))
+  
+  # vst <- assay(vsd.QA)
+  # meanSdPlot(assay(vsd.QA)[rowSums(assay(vsd.QA))>0,])
+  
+  geneNumber <- length(rownames(assay(vsd.QA)))
+  
+  png(file.path(outDir, paste0("pca_treatment_",outName, ".png")),
+       units="px", width=1920, height=1080, res=300)
+   p <- plotPCA(vsd.QA, intgroup = c("treatment"), ntop=geneNumber)
+   #p<- plot.new()
+   print(p)
+   dev.off()
+  # 
+  png(file.path(outDir, paste0("pca_time_",outName, ".png")),
+      units="px", width=1920, height=1080, res=300)
+  
+  p <- plotPCA(vsd.QA, intgroup = c("time"), ntop=geneNumber)
+  print(p)
+  dev.off()
+
+  vsdCombined <- varianceStabilizingTransformation(dds, blind=FALSE)
+  combinedData <- t(assay(vsdCombined))
+  combinedData <- combinedData[,which(colMads(as.matrix(combinedData)) > 0)]
+  save(combinedData, file=file.path(deFolder, paste0("combinedVsdData.RData")))
+  write.table(combinedData, file = file.path(deFolder,"fungi2011Combined.tsv"),
+              sep='\t', row.names=FALSE, col.names=FALSE)
+
+  writeLines(colnames(combinedData),
+             con=file.path(deFolder,"fungi2011CombinedNames.txt"))
+
+  print("DESeq treatment")
+  design(dds) <- ~treatment
+  vsdSplit <- varianceStabilizingTransformation(dds, blind=F)
+  vsdSplitData <- t(assay(vsdSplit))
+  controlData <- vsdSplitData[grep("C",rownames(vsdSplitData)),]
+  controlData <- controlData[,which(colMads(as.matrix(controlData)) > 0)]
+
+  fertilisedData <- vsdSplitData[grep("F",rownames(vsdSplitData)),]
+  fertilisedData <- fertilisedData[,which(colMads(as.matrix(fertilisedData)) > 0)]
+
+  save(controlData, file=file.path(deFolder,"controlVsdData.RData"))
+  write.table(controlData, file = file.path(deFolder,"fungi2011Control.tsv"),
+              sep='\t', row.names=FALSE, col.names=FALSE)
+  writeLines(colnames(controlData),
+             con=file.path(deFolder,"fungi2011ControlNames.txt"))
+
+  save(fertilisedData, file=file.path(deFolder,"fertilisedVsdData.RData"))
+  write.table(fertilisedData, file = file.path(deFolder,"fungi2011Fertilised.tsv"),
+              sep='\t', row.names=FALSE, col.names=FALSE)
+  writeLines(colnames(fertilisedData),
+             con=file.path(deFolder,"fungi2011FertilisedNames.txt"))
+})
+```
+
