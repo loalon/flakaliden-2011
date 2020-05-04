@@ -40,3 +40,5 @@ vignettes/*.pdf
 
 env/
 results/
+data/
+reports/
