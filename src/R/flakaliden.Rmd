@@ -17,6 +17,7 @@ This file contains the script and results of the data from spruce roots and fung
 from the 2011 Flakaliden dataset. 
 
 * 20191206 Creation  
+* 20200506 
 
 ## Prerequisites
 The variance stabilization transformed dataset, either as TSV or RData obtained from de differential expression analysis step.
@@ -26,9 +27,12 @@ Infomap clustering results from Seidr network
 ```{r generalSetup}
 library(dplyr)
 library(here)
-source("~/Git/Rtoolbox/src/plotEigenGene.R")
-source("~/Git/Rtoolbox/src/getEigengenes.R")
-source("~/Git/UPSCb-common/src/R/gopher.R")
+ library(reshape2)
+ library(ggplot2)
+source(here("Rtoolbox/src/plotEigenGene.R"))
+source(here("Rtoolbox/src/getEigengenes.R"))
+source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
+source(here("UPSCb-common/src/R/gopher.R"))
 conditions <- c("control", "fertilised", "combined")
 
 spruceDir <- "/mnt/picea/projects/spruce/vhurry/14_SpruceRoots_Project"
@@ -446,6 +450,7 @@ controlDEG <- getProfileDegradationMatrix(control.res.sort,
 ```
 
 ```{r controlViolin}
+write.table(controlDEG, file=here("results",paste0("controlDEG_",Sys.Date(),".tsv") ) , quote = F, sep='\t', row.names = F)
 
 controlDEG.df <- controlDEG[controlDEG$control_score>0,]
 
@@ -460,9 +465,148 @@ ggplot(controlDEG.df, aes(x=variable, y=value  )) +
 
 
 
-write.table(controlDEG.df, file=here("results",paste0("controlDEG.df.sort_",Sys.Date(),".tsv") ) , quote = F, sep='\t', row.names = F)
+#write.table(controlDEG.df, file=here("results",paste0("controlDEG.df.sort_",Sys.Date(),".tsv") ) , quote = F, sep='\t', row.names = F)
 
 ```
+
+Get the maximum difference.
+
+```{r}
+res.pos <- controlDEG %>% 
+  filter((control_score > 0) & (fertilised_score > 0)) #%>% 
+  #filter((degradation<1) & (degradation > -1))
+
+
+res.pos <- res.pos[order(res.pos$degradation, decreasing = T),]
+
+res.neg <- controlDEG %>% 
+  filter((control_score < 0) & (fertilised_score < 0)) #%>% 
+  #filter((degradation<1) & (degradation > -1))
+
+
+res.neg <- res.neg[order(res.neg$degradation, decreasing = T),]
+```
+```{r}
+mostDegraded <- rbind(head(res.pos, n=5),
+tail(res.pos, n=5),
+head(res.neg, n=5),
+tail(res.neg, n=5))
+
+write.table(mostDegraded, file=here("results",paste0("mostDegraded_",Sys.Date(),".tsv") ) , quote = F, sep='\t', row.names = F)
+
+```
+
+
+```{r}
+
+
+enrichThis <- function(data1, data2, clusterData1, group1, time1, group2, time2, clus1, background1, url ='pabies', type="go",
+                       title1="", title2="") {
+
+  results <- list()
+  
+  #print(clusterData1[clusterData1$cluster==gsub("i","", clus1),]$gene)
+  eigen <- getEigenGenes(data1, clusterData1[clusterData1$cluster==gsub("i","", clus1),]$gene)
+  
+  genes1 <- if(grepl("i", clus1, fixed = TRUE)){
+    print("negative")
+    eigen$negative
+  } else {
+    eigen$positive
+  }
+  
+  genes2 <- intersect(genes1, colnames(data2))
+
+    p1 <- plotEigengene(data1, genes1, group1, time1, title=title1)
+    
+    p2 <- plotEigengene(data2, genes2, group2, time2, title=title2)
+    
+    enr1 <- gopher(genes2, background=background1, url=url, task = type)
+    
+    results$plot1 <- p1
+    results$plot2 <- p2
+    results$enr1 <- enr1
+    
+    
+    return(results)
+    
+}
+```
+```{r}
+
+spruceClus <- mostDegraded[1,]$`Spruce-control`
+fungiClus <- mostDegraded[1,]$`Fungi-control`
+
+spruceMulti <- enrichThis(controlSpruceData,  fertilisedSpruceData,
+           controlSpruceClusters, 
+           controlSpruceGroup, 
+           controlSpruceTime, 
+           fertilisedSpruceGroup, 
+           fertilisedSpruceTime, 
+           spruceClus, 
+           controlSpruceClusters$gene, url="pabies", type=c("go","pfam","mapman","kegg"),
+           title1 = paste("Spruce control cluster", spruceClus, "with control data"),
+           title2 = paste("Spruce control cluster", spruceClus, "with fertilised data")
+           )
+
+fungiMulti <- enrichThis(controlFungiData,  fertilisedFungiData,
+           controlFungiClusters, 
+           controlFungiGroup, 
+           controlFungiTime, 
+           fertilisedFungiGroup, 
+           fertilisedFungiTime, 
+           fungiClus, 
+           controlFungiClusters$gene, url="ko", type="ko_pathway",
+           title1 = paste("Fungi control cluster", fungiClus, "with control data"),
+           title2 = paste("Fungi control cluster", fungiClus, "with fertilised data")
+           )
+
+```
+```{r}
+
+require(gridExtra)
+
+
+png(here("results", paste0("mostdegraded_", spruceClus, "_",fungiClus, "_", Sys.Date(), ".png")), width = 1920, heigh=1080)
+
+grid.arrange(spruceMulti$plot1, spruceMulti$plot2, fungiMulti$plot1, fungiMulti$plot2, ncol=2)
+
+
+
+
+
+dev.off()
+
+None <- sapply(c("go","pfam","mapman","kegg"), function(x){
+  if(!is.null(spruceMulti$enr1[[x]])) {
+    png(here("results", paste0("treemap_", x, Sys.Date(), ".png")), width = 1920, heigh=1080)
+  }
+  
+})
+plotEnrichedTreemap(spruceMulti$enr1, enrichment = "go", namespace = "BP")
+plotEnrichedTreemap(fungiMulti$enr1, enrichment = "ko_pathway", namespace = "BP")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ```{r fertilisedDEG}
@@ -629,10 +773,9 @@ write.table(control2fertilised.sort, file="control2fertilised.sort.tsv", quote =
 
 
 ```{r}
-library(reshape2)
+
 d <- melt(control2fertilised.pos.sort[,c("score","scoreInFertilised")])
- 
- library(ggplot2)
+
 # Basic violin plot
 
 p <- ggplot(d, aes(x=variable, y=value  )) + 

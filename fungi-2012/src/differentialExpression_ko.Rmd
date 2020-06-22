@@ -33,8 +33,8 @@ library(dplyr)
 library(here)
 register(MulticoreParam(4))
 source(here("Rtoolbox/src/utilsDE.r"))
-source(here("/Rtoolbox/src/plot3Dvector.R"))
-source(here("/Rtoolbox/src/plotVectorPCA.R"))
+source(here("Rtoolbox/src/plot3Dvector.R"))
+source(here("Rtoolbox/src/plotVectorPCA.R"))
 source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
 source(here("Rtoolbox/src/plotUpAndDown.R"))
 source(here("UPSCb-common/src/R/gopher.R"))
@@ -405,6 +405,60 @@ plotUpAndDown(fertilised.res.filter)
 plotUpAndDown(combined.res.filter)
 ```
 
+
+## Enrichment
+```{r}
+ddsBackground <- colnames(t(assay(dds)) )
+```
+
+```{r}
+bla <- lapply(combined.res.filter, function(x) {
+  res <- list()
+  upGenes <- rownames(x[x$log2FoldChange>0,])
+  downGenes <- rownames(x[x$log2FoldChange<0,])
+
+  up.genes.enr <- gopher(upGenes, background=ddsBackground, url="ko", task="ko_pathway", alpha=0.05)
+  down.genes.enr <- gopher(downGenes, background=ddsBackground, url="ko", task="ko_pathway", alpha=0.05)
+
+  res$up <- if (!is.null(up.genes.enr$ko_pathway)) 
+    koPathwayDiseaseCleanup(koTranslate(up.genes.enr$ko_pathway))
+  else 
+    NULL  
+  
+  res$down <- if (!is.null(down.genes.enr$ko_pathway)) 
+    koPathwayDiseaseCleanup(koTranslate(down.genes.enr$ko_pathway))
+  else 
+    NULL
+  
+  return(res)
+})
+
+
+# upGenes <- rownames(resFungiTreatment.filter$FertilisedvsControl[resFungiTreatment.filter$FertilisedvsControl$log2FoldChange>0,])
+# downGenes <- rownames(resFungiTreatment.filter$FertilisedvsControl[resFungiTreatment.filter$FertilisedvsControl$log2FoldChange<0,])
+```
+```{r}
+None <- lapply(bla, function(x) {
+  print(x$up)
+  if(!is.null(x$up ))
+    plotEnrichedTreemap(list(ko_pathway=x$up), 'ko_pathway','none')
+  
+  if(!is.null(x$down))
+    plotEnrichedTreemap(x$up, 'ko_pathway','none')
+
+})
+```
+
+```{r}
+up.genes.enr <- gopher(upGenes, background=c(upGenes,downGenes), url="ko", task="ko_pathway", alpha=0.05)
+down.genes.enr <- gopher(downGenes, background=treatmentBackground, url="ko", task="ko_pathway", alpha=0.05)
+```
+
+```{r}
+koTranslate(up.genes.enr$ko_pathway)
+koTranslate(down.genes.enr$ko_pathway)
+```
+
 ## DE Fertilisation vs Control
 ```{r}
 design(ddsMatrix) <- ~treatment
@@ -423,6 +477,25 @@ resFungiTreatment.filter <- lapply(resFungiTreatment, filterDE)
 
 plotUpAndDown(resFungiTreatment.filter)
 
+```
+
+```{r}
+treatmentBackground <- colnames(t(assay(ddsFungiTreatment)) )
+```
+
+```{r}
+upGenes <- rownames(resFungiTreatment.filter$FertilisedvsControl[resFungiTreatment.filter$FertilisedvsControl$log2FoldChange>0,])
+downGenes <- rownames(resFungiTreatment.filter$FertilisedvsControl[resFungiTreatment.filter$FertilisedvsControl$log2FoldChange<0,])
+```
+
+```{r}
+up.genes.enr <- gopher(upGenes, background=c(upGenes,downGenes), url="ko", task="ko_pathway", alpha=0.05)
+down.genes.enr <- gopher(downGenes, background=treatmentBackground, url="ko", task="ko_pathway", alpha=0.05)
+```
+
+```{r}
+koTranslate(up.genes.enr$ko_pathway)
+koTranslate(down.genes.enr$ko_pathway)
 ```
 
 # Results export

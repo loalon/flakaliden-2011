@@ -183,7 +183,51 @@ plotPCA(vsd.QA, intgroup = c("date"), ntop=geneNumber)
 ```{r}
 plotPCA(vsd.QA, intgroup = c("year"), ntop=geneNumber)
 ```
+```{r}
+pca <- prcomp( t(assay(vsd.QA)))
+percents <- round(summary(pca)$importance[2,]*100)
 
+# standard colors for the paper
+colors <- c("#e6e9bd","#b4d7bc","#7dc6bb","#1cb7ba","#00a7b9","#008b9a",
+            "#849fba","#a181a6","#c76b97","#ee2e82","#8e5766","#8a7b73",
+            "#869b7f","#42885e","#1aa64a","#75b443","#9bbe3b","#e1d51d",
+            "#ffe200"
+            )
+df3D <- data.frame(PC1 = pca$x[,1], PC2 = pca$x[,2], PC3 = pca$x[,3],
+                   treatment = meta$treatment, 
+                   week = meta$date,
+                   year = meta$year,
+                   treatYear = paste(meta$year, meta$treatment, sep="-")
+                   )
+
+```
+```{r}
+g <- ggplot(df3D, aes(x = PC1, y = PC2)) +
+  coord_fixed() +   
+  geom_point(size=15, aes(shape= treatYear, color=week)) + 
+	theme(legend.position = "none",
+	      legend.box = "vertical",
+	      axis.line = element_line(colour = "black"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank()
+	      ) + 
+  scale_shape_manual(values=c(0,15,1,16)) + 
+  scale_color_manual(values=colors) +
+  xlab(paste0("PC1: ",percents[1],"% variance")) +
+	ylab(paste0("PC2: ",percents[2],"% variance"))
+
+print(g)
+```
+
+```{r eval=FALSE, include=FALSE}
+# save it for the paper
+# change size to 15 before exporting
+png(here("results", paste0("separated_2011_2012_spruce_PCA_", Sys.Date(), ".png")), width = 1920, heigh=1080, pointsize = 300)
+print(g)
+dev.off()
+```
 
 ## PCA with year effect removed
 We use blind vst to plot a PCA and check for patterns and outliers
@@ -208,27 +252,59 @@ plotPCA(vsd.fix, intgroup = c("year"), ntop=geneNumber)
 plotPCA(vsd.fix, intgroup = c("treatment"), ntop=geneNumber)
 ```
 
+Final PCA
+```{r}
+pca <- prcomp( t(assay(vsd.fix)))
+percents <- round(summary(pca)$importance[2,]*100)
+
+# standard colors for the paper
+colors <- c("#e6e9bd","#b4d7bc","#7dc6bb","#1cb7ba","#00a7b9","#008b9a",
+            "#849fba","#a181a6","#c76b97","#ee2e82","#8e5766","#8a7b73",
+            "#869b7f","#42885e","#1aa64a","#75b443","#9bbe3b","#e1d51d",
+            "#ffe200"
+            )
+df3D <- data.frame(PC1 = pca$x[,1], PC2 = pca$x[,2], PC3 = pca$x[,3],
+                   treatment = meta$treatment, 
+                   week = meta$date,
+                   year = meta$year,
+                   treatYear = paste(meta$year, meta$treatment, sep="-")
+                   )
+
+```
+```{r}
+g <- ggplot(df3D, aes(x = PC1, y = PC2)) +
+  coord_fixed() +   
+  geom_point(size=4, aes(shape= treatYear, color=week)) + 
+	theme(legend.position = "none",
+	      legend.box = "vertical",
+	      axis.line = element_line(colour = "black"),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank()
+	      ) + 
+  scale_shape_manual(values=c(0,15,1,16)) + 
+  scale_color_manual(values=colors) +
+  xlab(paste0("PC1: ",percents[1],"% variance")) +
+	ylab(paste0("PC2: ",percents[2],"% variance"))
+
+print(g)
+```
+```{r eval=FALSE, include=FALSE}
+# save it for the paper
+# change size to 15 before exporting
+png(here("results", paste0("combined_2011_2012_spruce_PCA_", Sys.Date(), ".png")), width = 1920, heigh=1080, pointsize = 300)
+print(g)
+dev.off()
+```
+
 ## 3D PCA
 We represent the first 3 compoments as a 3D interactive object
 
 ```{r}
-
-vsd.QA.t <- t(assay(vsd.fix))
-pca <- prcomp(vsd.QA.t)
-percents <- round(summary(pca)$importance[2,]*100)
-
-colors <- c("#f8766d", "#7cae00","#00bfc4")
-
-df3D <- data.frame(treatment = meta$treatment)
-df3D$time <- meta$date
-df3D$colors <- colors[as.numeric(df3D$treatment)]
-df3D$PC1 <- pca$x[,1]
-df3D$PC2 <- pca$x[,2]
-df3D$PC3 <- pca$x[,3] 
-
 plot_ly(df3D, x = ~PC1, y = ~PC3, z = ~PC2, 
-        color = ~treatment, colors = colors,
-        text = ~paste("Date:", time, '<br>Treatment:', treatment) ) %>%   
+        color = ~week, colors = colors, symbol= ~treatment,symbols = c("circle","square","cross","x"),
+        text = ~paste("Date:", week, '<br>Treatment:', treatment) ) %>%   
   add_markers() %>%
   layout(scene = list(xaxis = list(title = paste("PC1 (",percents[1],"%)",sep="")),
                       yaxis = list(title = paste("PC3 (",percents[3],"%)",sep="")),

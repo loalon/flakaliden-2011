@@ -1,0 +1,440 @@
+---
+title: "Fungi 2011 project - Differential expression analysis for flakaliden 2011 fungi data"
+author: "Alonso Serrano"
+date: "`r Sys.Date()`"
+output:
+ html_document:
+   toc: true
+   number_sections: true
+---
+
+# Introduction
+This file contains the script and results for the differential expression analysis done to the
+fungi 2011 data..
+
+* 20191220 Updated with 2019-12-20 files from John  
+* 
+
+## Prerequisites
+Transcript coutns file or megaData
+
+A metadata file containing all the information related to each sample, file name, time, condition and replica number.
+
+
+# Setup
+Load libraries
+```{r, message=FALSE}
+library(DESeq2)
+library(tximport)
+library(BiocParallel)
+library(plotly)
+library(dplyr)
+library(here)
+register(MulticoreParam(4))
+source(here("Rtoolbox/src/utilsDE.r"))
+source(here("/Rtoolbox/src/plotInteractivePCA.R"))
+source(here("/Rtoolbox/src/plotVectorPCA.R"))
+source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
+source(here("Rtoolbox/src/plotUpAndDown.R"))
+source(here("UPSCb-common/src/R/gopher.R"))
+
+```
+```{r}
+plotResults <- function(theData) {
+  
+  for (deName in names(theData)) {
+  
+    #deName <- paste0('Cluster',clus)
+    #clusIndex <- match(deName, names(theClusters))
+    #clusIndex <- as.numeric(substr(deName,8,nchar(deName)))
+    cat(paste0("<H3>", deName, "","</H3>"))
+    cat("\n\n")
+    
+    enrUp <- theData[[deName]]$up[['ko_pathway']]
+    enrDown <- theData[[deName]]$down[['ko_pathway']]
+    
+    cat("Up genes \n\n")
+    if (!is.null(enrUp) ) {
+      plotEnrichedTreemap(theData[[deName]]$up, enrichment = 'ko_pathway', namespace = 'none',
+                          de='up', title = paste(deName," KO enrichment"))
+    } else {
+      cat("No enrichment data found")
+    }
+    cat("\n")
+    cat("<hr>")
+    
+    cat("Down genes \n\n")
+
+    
+    if (!is.null(enrDown) ) {
+      plotEnrichedTreemap(theData[[deName]]$down, enrichment = 'ko_pathway', namespace = 'none',
+                          de='down', title = paste(deName," KO enrichment"))
+    } else {
+      cat("No enrichment data found")
+    }
+    cat("\n")
+    cat("<hr>")
+
+  }
+  
+}
+
+getDEenrichment <- function(deData, background){
+  results <- lapply(deData, function(x){
+
+    upGenes <- rownames(x[x$log2FoldChange>0,])
+    downGenes <- rownames(x[x$log2FoldChange<0,])
+    upEnr <- list(ko_pathway=NULL)
+    downEnr <- list(ko_pathway=NULL)
+    
+    if(length(upGenes)>1) 
+      upEnr <- gopher(upGenes, task=list("ko_pathway"), background=background, url='ko', alpha=0.05)
+
+    if(length(downGenes)>1) 
+      downEnr <- gopher(downGenes, task=list("ko_pathway"), background=background, url='ko', alpha=0.05)
+    
+    res <- list(up=upEnr, down=downEnr)
+    
+    res
+  })
+  
+  results
+}
+```
+
+
+Set the project folder
+
+```{r}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011"
+deFolder <- file.path(projectFolder,"DE")
+dataFolder <- file.path(projectFolder,"data")
+load(file.path(dataFolder, "megaData.RData") )
+
+
+data <- megaData[, c(1:112)]
+rownames(data) <- data$gene
+data <- data[,-1]
+
+```
+
+Read metadata
+```{r}
+meta <- data.frame(week=substr(colnames(data), 2, 3),
+                   treatment=substr(colnames(data), 4, 4),
+                   group=substr(colnames(data), 2, 4))
+```
+
+
+Add the interaction group to the metadata, in order to simplify
+```{r}
+head(meta, n=3)
+```
+
+
+Import data as a DESeq object and place the sample names to the columns
+```{r deImport, message=FALSE}
+ddsMatrix <- DESeqDataSetFromMatrix(data, colData=meta, design = ~group)
+ddsMatrix
+```
+
+
+Remove 0 expression genes accross all samples we can remove it
+```{r}
+ddsMatrix <- ddsMatrix[(rowSums(counts(ddsMatrix)) > 0),]
+ddsMatrix
+```
+
+
+# QA
+## PCA
+We use blind vst to plot a PCA and check for patterns and outliers
+```{r vsdBlind}
+vsd.QA <- vst(ddsMatrix, blind=TRUE, fitType = 'local')
+```
+
+Interactive PCA 
+```{r message=FALSE, warning=FALSE}
+plotInteractivePCA(t(assay(vsd.QA)),
+          meta=data.frame(week=vsd.QA$week, treatment=vsd.QA$treatment), 
+          group=c("treatment"),
+          colors=c("#009444","#BE9230") )
+```
+
+# Differential Expression
+The dataset is ready for DESeq2. We check the design of the DE object 
+
+```{r}
+design(ddsMatrix)
+```
+
+We are interested on future comparitions like DE ko in each timepoints or between timepoints
+that is why we created the interaction group
+
+## Run DESeq
+```{r runDE, eval=T}
+dds <- DESeq(ddsMatrix)
+```
+
+## Data for networks
+For a co-expression network construction we need the vst data after doing a zeroMAD (Mean Decrease Accuracy) cleanup.
+That will remove genes with zero or almost zero expression.
+For the network construction with Seidr we need a headless files with the data and a file only with the gene names
+
+### Combined
+```{r,eval=FALSE}
+vsdCombined <- vst(dds, blind=FALSE)
+combinedData <- t(assay(vsdCombined))
+combinedData <- combinedData[,which(colMads(as.matrix(combinedData)) > 0)]
+save(combinedData, file=file.path(deFolder,"transcriptsCombinedVsdData.RData"))
+write.table(combinedData, file =file.path(deFolder,"transcriptsFungi2011Combined.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(combinedData), con=file.path(deFolder,"transcriptsFungi2011CombinedNames.txt"))
+```
+
+
+We check the result names
+```{r}
+resultsNames(dds)
+```
+
+In order to make all the comparitions automated, we prepare vectors with the elements that will be used
+in the result extraction
+```{r}
+controlVector <- as.character(unique(meta$group[grep("C", meta$group)]))
+fertilisedVector <- as.character(unique(meta$group[grep("F", meta$group)]))
+```
+
+## Result extraction
+We want to make 3 different comparations, each one composed of several outputs from DESeq2
+In order to do that, we will extract all the results for each comparation type, store them
+as a list and then we can process them.
+
+### Control week vs week
+For this comparition we take consider only the control condition and we compare each pair of weeks
+to determine which genes are up or down regaluated from one week to the previous week
+
+```{r eval=FALSE}
+control.res <- mapply(getRes, controlVector[-1],
+                      controlVector[-length(controlVector)],
+                      MoreArgs = list(localDDS=dds, group="group"))
+```
+
+### Fertilised week vs week
+For this comparition we take consider only the fertilised condition and we compare each pair of weeks
+to determine which genes are up or down regaluated from one week to the previous week
+
+```{r eval=FALSE}
+fertilised.res <- mapply(getRes, fertilisedVector[-1], 
+fertilisedVector[-length(fertilisedVector)], 
+MoreArgs = list(localDDS=dds, group="group"))
+```
+
+### Timepoint Fertilised vs Control
+For this comparition we take consider only a week each time and then compare DE genes due to fertilisation
+
+```{r eval=FALSE}
+combined.res <- mapply(getRes, fertilisedVector, controlVector, 
+MoreArgs = list(localDDS=dds, group="group"))
+```
+
+We add the corresponding names to the results
+```{r addNames}
+names(control.res) <- c("20Cvs19C", "21Cvs20C", "22Cvs21C", "23Cvs22C",
+                     "24Cvs23C", "25Cvs24C", "26Cvs25C", "28Cvs26C",
+                     "31Cvs28C", "32Cvs31C", "34Cvs32C", "35Cvs34C",
+                     "36Cvs35C", "37Cvs36C", "38Cvs37C", "39Cvs38C",
+                     "40Cvs39C", "41Cvs40C")
+
+names(fertilised.res) <- c("20Fvs19F", "21Fvs20F", "22Fvs21F", "23Fvs22F",
+                        "24Fvs23F", "25Fvs24F", "26Fvs25F", "28Fvs26F",
+                        "31Fvs28F", "32Fvs31F", "34Fvs32F", "35Fvs34F",
+                        "36Fvs35F", "37Fvs36F", "38Fvs37F", "39Fvs38F",
+                        "40Fvs39F", "41Fvs40F")
+
+names(combined.res) <- c("19Fvs19C", "20Fvs20C", "21Fvs21C", "22Fvs22C",
+                      "23Fvs23C", "24Fvs24C", "25Fvs25C", "26Fvs26C",
+                      "28Fvs28C", "31Fvs31C", "32Fvs32C", "34Fvs34C",
+                      "35Fvs35C", "36Fvs36C", "37Fvs37C", "38Fvs38C",
+                      "39Fvs39C", "40Fvs40C", "41Fvs41C")
+```
+
+```{r include=FALSE, eval=FALSE}
+save(dds, control.res, fertilised.res, combined.res, file=file.path(deFolder,"allDEresults.RData"))
+```
+
+```{r include=FALSE}
+load(file.path(deFolder,"allDEresults.RData"))
+```
+
+## Filtering
+The results contain all the genes, we need to filter them to get only those genes
+that are stadistical significant and that have a strong condtition effect
+For that we discard all the genes that has a padj higher than 0.01 and
+a log2FoldChange lower than 0.5 (absolute value)
+```{r filtering, results="hide", message=FALSE}
+control.res.filter <- lapply(control.res, filterDE)
+fertilised.res.filter <- lapply(fertilised.res, filterDE)
+combined.res.filter <- lapply(combined.res, filterDE)
+```
+
+It is a good practice to do a check and see if the filtering was correct
+```{r checkfilter, results="hide", message=FALSE}
+lapply(control.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
+lapply(fertilised.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
+lapply(combined.res.filter, function(x) print(all(abs(x$log2FoldChange)>0.5 & x$padj<0.01)) )
+```
+
+## Plot DE genes
+We can plot the results as positive and negative bars to reflect the amount of genes up or down
+regulated in each comparition 
+For that we create a couple more vector to present the results
+
+In order to get the results by week, and then treatment. 19C, 19F, 20C, ...
+```{r}
+mixVector <- c(rbind(controlVector, fertilisedVector))
+```
+And to do the same by treatment. 19C, 20C, ..., 41C, 19F, 20F, ...
+
+```{r}
+concatVector <- c(cbind(controlVector, fertilisedVector))
+```
+
+### Control week+1 vs week plot
+```{r}
+plotUpAndDown(control.res.filter)
+```
+
+### Fertilised week+1 vs week plot
+```{r}
+plotUpAndDown(fertilised.res.filter)
+```
+
+### Fertilised vs Control per week plot
+```{r}
+plotUpAndDown(combined.res.filter)
+```
+
+## DE Fertilisation vs Control
+```{r}
+design(ddsMatrix) <- ~Treatment
+
+ddsFungiTreatment  <- DESeq(ddsMatrix)
+
+resFungiTreatment <- list( FertilisedvsControl = results(ddsFungiTreatment ,
+        name= "Treatment_F_vs_C",
+        filter = rowMedians(counts(ddsFungiTreatment )),
+        parallel = FALSE) 
+        )
+
+save(ddsFungiTreatment, resFungiTreatment, file=file.path(projectFolder, "DE", "ddsTreatment.RData"))
+de4network(resFungiTreatment, file.path(deFolder,"deFvsC.tsv"))
+resFungiTreatment.filter <- lapply(resFungiTreatment, filterDE)
+
+plotUpAndDown(resFungiTreatment.filter)
+
+```
+
+## Top genes
+To check the top genes in each comparition we create a dot plot for the top 6 genes with two lines (read and blue)
+that highligths the comparition pair that we want to check and store it as a PDF
+
+```{r plotTops, results="hide", message=FALSE,eval=FALSE}
+plotTop(control.res.filter, dds, plotGroup=c('Treatment','Week'), infoVector=concatVector, name = file.path(deFolder,"controlFilter.pdf"))
+plotTop(fertilised.res.filter, dds, plotGroup=c('Treatment','Week'), infoVector=concatVector, name = file.path(deFolder,"fertilisedFilter.pdf"))
+plotTop(combined.res.filter, dds, plotGroup=c('Week','Treatment'), infoVector=mixVector, name = file.path(deFolder,"combinedFilter.pdf"))
+```
+
+# Results export
+## Background for enrichment
+We need to extract the names of all the genes that at least have 1 count across all samples to establish a background 
+needed for future enrichment steps
+```{r}
+write.table(colnames(t(assay(dds))), file=file.path(deFolder,"background.txt"), row.names = F,col.names = F, quote = F )
+```
+
+
+## Data for networks
+For a co-expression network construction we need the vst data after doing a zeroMAD (Mean Decrease Accuracy) cleanup.
+That will remove genes with zero or almost zero expression.
+For the network construction with Seidr we need a headless files with the data and a file only with the gene names
+
+### Combined
+```{r,eval=FALSE}
+vsdCombined <- vst(dds, blind=FALSE)
+combinedData <- t(assay(vsdCombined))
+combinedData <- combinedData[,which(colMads(as.matrix(combinedData)) > 0)]
+save(combinedData, file=file.path(deFolder,"combinedVsdData.RData"))
+write.table(combinedData, file =file.path(deFolder,"fungi2011Combined.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(combinedData), con=file.path(deFolder,"fungi2011CombinedNames.txt"))
+```
+
+### Control & fertilised
+In order to make this individual networks, we need to specify a new design to obtain the vst data using model awareness. In this case, the model should be treatment.
+```{r ,eval=FALSE}
+ddsSplit <- dds
+design(ddsSplit) <- ~Treatment
+vsdSplit <- vst(ddsSplit, blind=F)
+vsdSplitData <- t(assay(vsdSplit))
+controlData <- vsdSplitData[grep("C",rownames(vsdSplitData)),]
+controlData <- controlData[,which(colMads(as.matrix(controlData)) > 0)]
+
+fertilisedData <- vsdSplitData[grep("F",rownames(vsdSplitData)),]
+fertilisedData <- fertilisedData[,which(colMads(as.matrix(fertilisedData)) > 0)]
+
+save(controlData, file=file.path(deFolder,"controlVsdData.RData"))
+write.table(controlData, file = file.path(deFolder,"fungi2011Control.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(controlData), con=file.path(deFolder,"fungi2011ControlNames.txt"))
+
+save(fertilisedData, file=file.path(deFolder,"fertilisedVsdData.RData"))
+write.table(fertilisedData, file = file.path(deFolder,"fungi2011Fertilised.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(fertilisedData), con=file.path(deFolder,"fungi2011FertilisedNames.txt"))
+
+```
+
+## DE results
+For downstream analysis we export each set of results to a tsv file containing the padj and log2foldchange values for each comparition.
+We export the results unfiltered
+```{r exportDEresults, eval=FALSE, message=FALSE, include=FALSE, results="hide"}
+de4network(control.res, file.path(deFolder,"deControl.tsv"))
+de4network(fertilised.res, file.path(deFolder,"deFertilised.tsv"))
+de4network(combined.res, file.path(deFolder,"deCombined.tsv"))
+```
+
+## DE enrichment
+
+We set the background
+```{r}
+background <- read.table(file.path(deFolder, "background.txt"), sep='\t', header=F, stringsAsFactors = F)[,1] 
+```
+Now we use gopher to obtain the enrichment results for up and down expressed genes
+```{r}
+control.res.enr <- getDEenrichment(control.res.filter, background)
+fertilised.res.enr <- getDEenrichment(fertilised.res.filter, background)
+combined.res.enr <- getDEenrichment(combined.res.filter, background)
+```
+
+### Control
+```{r}
+plotResults(control.res.enr)
+```
+### Fertilised
+```{r}
+plotResults(fertilised.res.enr)
+```
+
+### Combined
+```{r}
+plotResults(combined.res.enr)
+```
+
+
+
+# Session information
+```{r}
+sessionInfo()
+```
+
+
+
+
+# References

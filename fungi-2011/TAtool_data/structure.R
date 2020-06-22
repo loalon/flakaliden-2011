@@ -71,15 +71,15 @@ fullData$expData[['control']] <- controlData
 fullData$expData[['fertilised']] <- fertilisedData
 fullData$expData[['combined']] <- combinedData
 
-# load(paste0(projectDir, "spruce-networks/control/cluster/controlEnr.RData"))
-# load(paste0(projectDir, "spruce-networks/fertilised/cluster/fertilisedEnr.RData"))
-# load(paste0(projectDir, "spruce-networks/combined/cluster/combinedEnr.RData"))
+load(file.path(projectDir, "networks/control/cluster/controlEnr.RData"))
+load(file.path(projectDir, "networks/fertilised/cluster/fertilisedEnr.RData"))
+load(file.path(projectDir, "networks/combined/cluster/combinedEnr.RData"))
 
 # enr will store the enrichment results, better to have it precalculated for faster access
-# fullData$enr <- list() # initializing list prevents "more elements supplied than there are to replace" error
-# fullData$enr[['control']] <- controlEnr
-# fullData$enr[['fertilised']] <- fertilisedEnr
-# fullData$enr[['combined']] <- combinedEnr
+fullData$enr <- list() # initializing list prevents "more elements supplied than there are to replace" error
+fullData$enr[['control']] <- controlEnr
+fullData$enr[['fertilised']] <- fertilisedEnr
+fullData$enr[['combined']] <- combinedEnr
 
 load(file.path(deFolder, "allDEresults.RData"))
 

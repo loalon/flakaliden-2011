@@ -40,6 +40,7 @@ background <- read.table(paste0(deDir, "background.txt"), stringsAsFactors = F, 
 load(paste0(deDir, "controlVsdData.RData"))
 load(paste0(deDir, "fertilisedVsdData.RData"))
 load(paste0(deDir, "combinedVsdData.RData"))
+markovTime <- 1
 ```
 ## Auxilary functions
 ```{r , message=FALSE, warning=FALSE}
@@ -49,12 +50,8 @@ plotResults <- function(clusterDir, theData, theClusters, theEnrichment,colors =
   
   #save  results
   for (clus in 1:15) {
-    
-    #clusName <- names(theClusters)[clus]
     clusName <- paste0('Cluster',clus)
-    #print(clusName)
-    
-    
+
     png(paste0(clusterDir, clusName, ".png" ), width = 1482, height=571 )
     print(plotEigengene(theData, theClusters[[clusName]], 
                         substr(rownames(theData),5,5), 
@@ -143,7 +140,6 @@ clusterFolder <- paste0(workDir, "control/cluster/")
 
 edgeIndexFile <- paste0(netSubDir, "controlIndexEdgeList.txt")
 treeFile <- paste0(clusterFolder,"controlIndexEdgeList.tree")
-markovTime <- 0.54
 
 dir.create(clusterFolder, showWarnings = FALSE)
 
@@ -184,8 +180,6 @@ load(file=paste0(clusterFolder, "controlEnr.RData"))
 # theEnrichment <- controlEnr
 
 plotResults(paste0(clusterFolder, "controlClustersPlots/"), controlData, controlClusters, controlEnr)
-
-
 ```
 
 ## Fertilised network
@@ -197,7 +191,6 @@ clusterFolder <- paste0(workDir, "fertilised/cluster/")
 
 edgeIndexFile <- paste0(netSubDir, "fertilisedIndexEdgeList.txt")
 treeFile <- paste0(clusterFolder,"fertilisedIndexEdgeList.tree")
-markovTime <- 0.5
 
 dir.create(clusterFolder, showWarnings = FALSE)
 
@@ -248,7 +241,6 @@ clusterFolder <- paste0(workDir, "combined/cluster/")
 
 edgeIndexFile <- paste0(netSubDir, "combinedIndexEdgeList.txt")
 treeFile <- paste0(clusterFolder,"combinedIndexEdgeList.tree")
-markovTime <- 0.53
 
 dir.create(clusterFolder, showWarnings = FALSE)
 

@@ -1,0 +1,155 @@
+---
+title: "Flakaliden fungi split cluster enrichment"
+author: "Alonso Serrano"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+ 
+
+## Prerequisites
+Each sample, file name, time, condition and replica number.
+
+# Setup
+Load libraries
+```{r, message=FALSE}
+#library(DESeq2)
+#library(tximport)
+#library(BiocParallel)
+#library(plotly)
+#library(dplyr)
+#register(MulticoreParam(4))
+library(here)
+source(here("UPSCb-common/src/R/gopher.R"))
+source(here("Rtoolbox/src/utilsDE.r"))
+source(here("Rtoolbox/src/getEigengenes.R"))
+source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
+source(here("Rtoolbox/src/plotEigenGene.R"))
+source(here("Rtoolbox/src/infomapTools.R"))
+source("~/scripts/koPathwayDiseaesCleanup/koProcessing.R")
+```
+
+Set the project folder
+```{r ceno, eval=T, include=T}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/fungi-species/cortinarius_glaucopus"
+deFolder <- file.path(projectFolder,"DE")
+
+clusterFolder <- file.path(projectFolder,"networks/control/results/aggregated")
+clusterFile <- file.path(clusterFolder, "InfomapClusters_l1.tsv")
+
+enrTasks <- c("cog","ko","ko_pathway","kog")
+preLoadedFile <- file.path(clusterFolder, "controlSplitEnr.RData")
+url="fungi2011"
+
+dataFile <- file.path(deFolder, "controlVsdData.RData")
+```
+
+
+```{r}
+InfomapClusters <- read.delim(clusterFile, stringsAsFactors=FALSE)
+background <- InfomapClusters$gene
+
+
+load(dataFile)
+theData <- controlData
+clusterNames <- unique(InfomapClusters$cluster)
+```
+
+```{r splitClusters}
+splitClusters <- lapply(clusterNames, function(cluster){
+  theCluster <- InfomapClusters[InfomapClusters$cluster==cluster,]$gene
+  cat(paste0("<H3>", cluster, "","</H3>"))
+  cat("\n\n")
+  res <- getEigenGenes(theData, theCluster)
+  pos <-length(res$positive)
+  neg <- length(res$negative)
+  posRatio <- round((pos/(pos+neg)) * 100, digits = 2)
+  
+  ratio <- paste0(posRatio,"-",100-posRatio)
+  cat(paste("Genes in main profile", pos, "\n"))
+  cat(paste("Genes in reverse profile", neg, "\n"))
+  cat(paste("Main-reverse ratio", ratio, "\n"))
+  res
+})
+names(splitClusters) <- clusterNames
+```
+
+```{r splitEnr, eval=F}
+controlSplitEnr <- lapply(splitClusters, function(splitedCluster){
+
+  print(names(splitedCluster))
+#  x <- enrichClusters(splitedCluster, background = background)
+#  
+   enr <- lapply(splitedCluster, function(x) {
+    if(length(x) > 1)
+      gopher(x, task = enrTasks, background = background, url=url, alpha = 0.05)
+    else
+      NULL
+  })
+})
+
+```
+
+
+```{r saveEnr, eval=F}
+save(controlSplitEnr, file=preLoadedFile)
+```
+```{r loadControlEnr, include=FALSE}
+load(file=preLoadedFile)
+
+```
+
+```{r plotControlEnr, message=FALSE, warning=FALSE, results='asis',out.width="50%"}
+theEnrichment <- controlSplitEnr
+for(cluster in clusterNames){
+    theCluster <- InfomapClusters[InfomapClusters$cluster==cluster,]$gene
+  cat(paste0("<H3>", cluster, "","</H3>"))
+  
+  cat("\n\n")
+  print(plotEigengene(theData, theCluster, substr(rownames(theData),4,4), 
+              as.integer(substr(rownames(controlData),2,3)), timeUnits = "Week", plotBothProfiles = T, colors=c("#009444", "lightgreen")))
+  clus <- match(cluster, clusterNames)
+  cat("\n\n")
+  res <- splitClusters[[cluster]]
+  pos <-length(res$positive)
+  neg <- length(res$negative)
+  posRatio <- round((pos/(pos+neg)) * 100, digits = 2)
+  
+  ratio <- paste0(posRatio,"-",100-posRatio)
+  cat(paste("<h5>Genes in main profile", pos, "</h5>\n"))
+  cat(paste("<h5>Genes in reverse profile", neg, "</h5>\n"))
+  cat(paste("<h5>Main-reverse ratio", ratio, "</h5>\n"))
+  
+  for(profile in c('positive','negative')) {
+    
+    enrRes <- theEnrichment[[cluster]][[profile]]
+    cat("\n\n")
+    if (profile=="positive")
+      cat("<h4>Positive profile enrichment</h4>")
+    else
+      cat("<h4>Negative profile enrichment</h4>")
+    cat("\n\n")
+    par(mar = c(4, 4, 0.1, 0.1))
+    for( y in enrTasks) {
+      if(!is.null(enrRes[[y]])) {
+         if(y=="kegg" || y=="ko"){
+           enrRes[[y]] <- koTranslate(enrRes[[y]])
+         }
+         if(y=="ko_pathway")
+           enrRes[[y]] <- koPathwayDiseaseCleanup(koTranslate(enrRes[[y]]))
+        plotEnrichedTreemap(enrRes, enrichment = y, namespace = "none", title=paste(y,"enrichment"))
+      }
+    }
+    par(mfrow=c(1,1))
+    cat("\n\n")
+    cat("<hr>")
+
+  }
+}
+```
+

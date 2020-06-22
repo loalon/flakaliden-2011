@@ -21,20 +21,33 @@ The variance stabilization transformed dataset, either as TSV or RData obtained 
 Infomap clustering results from Seidr network
 
 ## Setup
-```{r generalSetup}
+```{r generalSetup, message=FALSE, warning=FALSE}
+# preload packages
+library(ggplot2)
+library(RColorBrewer)
+library(reshape2)
+library(tidyr)
+library(tibble)
+library(jsonlite)
+library(treemap)
+library(KEGGREST)
+library(reshape2)
+library(data.table)
+
 library(dplyr)
 library(here)
 source("~/Git/Rtoolbox/src/plotEigenGene.R")
 source("~/Git/Rtoolbox/src/getEigengenes.R")
 source("~/Git/Rtoolbox/src/plotEnrichedTreemap.R")
 source("~/Git/UPSCb-common/src/R/gopher.R")
+source("~/scripts/koPathwayDiseaesCleanup/koProcessing.R")
 conditions <- c("control", "fertilised", "combined")
 
-#specie <- "cenococcum_geophilum"
+specie <- "cenococcum_geophilum"
 #specie <- "cortinarius_glaucopus"
- #specie <- "hyaloscypha_bicolor"
- #specie <- "hyaloscypha_variabilis"
-specie <- "piloderma_croceum"
+#specie <- "hyaloscypha_bicolor"
+#specie <- "hyaloscypha_variabilis"
+#specie <- "piloderma_croceum"
 
 
 spruceDir <- "/mnt/picea/projects/spruce/vhurry/14_SpruceRoots_Project"
@@ -50,11 +63,22 @@ checkFile <- function(fileName) {
 
 ## Auxiliary functions
 
-### Profile matching function
+Get profile data
+```{r miniFunction}
+getPlotData <-function(data1, genes1, group1, time1) {
+  p1 <- plotEigengene(data1, genes1, group1, time1)
+    p1.data <- p1$data %>%
+      group_by(x) %>%
+      summarise(n = n(), y = mean(y, na.rm = TRUE) )
+  return(p1.data)
+}
+```
 
+Profile matching function
 ```{r profilefunction}
+#TODO fix this using the minifunction
 profileSimilarity <- function(data1, data2, clusterData1, clusterData2, 
-                              group1, group2, time1, time2, name1, name2){
+                              group1, group2, time1, time2, name1, name2, minSize=20){
 
   #resultados
   # cluster1F -> cluster1S -> 0.34
@@ -62,17 +86,22 @@ profileSimilarity <- function(data1, data2, clusterData1, clusterData2,
   clusters2 <- unique(clusterData2$cluster)
   
   res <- data.frame(name1 = character(),
+                    genes1 = character(),
                    name2 = character(), 
+                   genes2 = character(),
                    score = double(), 
                    stringsAsFactors = FALSE) 
 
   #por cada cluster
   sapply(clusters1, function(clus1){
     
+    clus1Genes <- clusterData1[clusterData1$cluster==clus1,]$gene
+    clus1Genes_split <- getEigenGenes(data1, clus1Genes)
     clus1i <- paste0(clus1, "i")
-    p1 <- plotEigengene(data1,
-                clusterData1[clusterData1$cluster==clus1,]$gene, 
-                group1, time1)
+    lenClus1 <- length(clus1Genes_split$positive)
+    lenClus1i <- length(clus1Genes_split$negative)
+    
+    p1 <- plotEigengene(data1, clus1Genes, group1, time1)
     p1.data <- p1$data %>%
       group_by(x) %>%
       summarise(n = n(), y = mean(y, na.rm = TRUE) )
@@ -81,10 +110,14 @@ profileSimilarity <- function(data1, data2, clusterData1, clusterData2,
   
     sapply(clusters2, function(clus2){
       #print(paste("comparing",clus1, clus2))
+      
+      clus2Genes <- clusterData2[clusterData2$cluster==clus2,]$gene
+      clus2Genes_split <- getEigenGenes(data2, clus2Genes)
       clus2i <- paste0(clus2, "i")
-        p2 <- plotEigengene(data2,
-              clusterData2[clusterData2$cluster==clus2,]$gene, 
-              group2, time2)
+      lenClus2 <- length(clus2Genes_split$positive)
+      lenClus2i <- length(clus2Genes_split$negative)
+    
+        p2 <- plotEigengene(data2,clus2Genes, group2, time2)
         p2.data <- p2$data %>%
           group_by(x) %>%
           summarise(n = n(), y = mean(y, na.rm = TRUE) )
@@ -93,29 +126,34 @@ profileSimilarity <- function(data1, data2, clusterData1, clusterData2,
         
         #add comparitions
         #1vs2
-        res <<- rbind(res, c(clus1, clus2 ,cor(eigen1, eigen2, method = c("spearman"))), 
-                   stringsAsFactors = FALSE)
+        if((lenClus1 > minSize) && (lenClus2 > minSize))
+        res <<- rbind(res, c(clus1, lenClus1, clus2, lenClus2, 
+                             cor(eigen1, eigen2, method = c("spearman"))), stringsAsFactors = FALSE)
         #1ivs2
-        res <<- rbind(res, c(clus1i, clus2 ,cor(eigen1i, eigen2, method = c("spearman"))),
-                   stringsAsFactors = FALSE)
+        if((lenClus1i > minSize) && (lenClus2 > minSize))
+        res <<- rbind(res, c(clus1i, lenClus1i, clus2, lenClus2, 
+                             cor(eigen1i, eigen2, method = c("spearman"))), stringsAsFactors = FALSE)
         #1vs2i
-        res <<- rbind(res, c(clus1, clus2i ,cor(eigen1, eigen2i, method = c("spearman"))),
-                   stringsAsFactors = FALSE)
+        if((lenClus1 > minSize) && (lenClus2i > minSize))
+        res <<- rbind(res, c(clus1, lenClus1, clus2i, lenClus2i,
+                             cor(eigen1, eigen2i, method = c("spearman"))), stringsAsFactors = FALSE)
         #1ivs2i
-        res <<- rbind(res, c(clus1i, clus2i ,cor(eigen1i, eigen2i, method = c("spearman"))),
-                   stringsAsFactors = FALSE)
+        if((lenClus1i > minSize) && (lenClus2i > minSize))
+        res <<- rbind(res, c(clus1i, lenClus1i, clus2i, lenClus2i, 
+                             cor(eigen1i, eigen2i, method = c("spearman"))), stringsAsFactors = FALSE)
     })
 
   })
   # retorno
-  names(res) <- c(name1, name2, "score")
+  names(res) <- c(name1, paste0(name1,"-genes"),name2, paste0(name2,"-genes"), "score")
   res$score <- as.numeric(res$score)
   return(res)
 }
 ```
 
-
-```{r getClustersAmounts}
+Turn clusters into networks
+```{r getClustersAmounts, include=F, eval=F}
+# future uses
 cluster2Network <- function(data, clusterData, species){
   
   temp <- lapply(unique(clusterData$cluster), function(localCluster) {
@@ -149,21 +187,7 @@ cluster2Network <- function(data, clusterData, species){
 
 ```
 
-
-
-
-```{r miniFunction}
-getPlotData <-function(data1, genes1, group1, time1) {
-  p1 <- plotEigengene(data1, genes1, group1, time1)
-    p1.data <- p1$data %>%
-      group_by(x) %>%
-      summarise(n = n(), y = mean(y, na.rm = TRUE) )
-  return(p1.data)
-}
-```
-
-
-
+Create a profile degradation matrix
 ```{r profileDegradationFunction}
 
 getProfileDegradationMatrix <- function(pairedData, conditionSpruceClusters, conditionFungiClusters, 
@@ -182,7 +206,7 @@ getProfileDegradationMatrix <- function(pairedData, conditionSpruceClusters, con
     
    
     spruceCluster <- condition.pos[l,1]
-    fungiCluster <- condition.pos[l,2]
+    fungiCluster <- condition.pos[l,3]
     spruceReverse <- ifelse(endsWith(spruceCluster, "i"), TRUE, FALSE) 
     fungiReverse <- ifelse(endsWith(fungiCluster, "i"), TRUE, FALSE)
   
@@ -222,7 +246,7 @@ getProfileDegradationMatrix <- function(pairedData, conditionSpruceClusters, con
     
   }) #end of sapply
 
-  res <- condition.pos[,1:2]
+  res <- condition.pos[,1:4]
   res[[paste0(conditionNames[1],"_score")]] <- score1
   res[[paste0(conditionNames[2],"_score")]] <- score2
   res$degradation <- score1 - score2
@@ -256,7 +280,8 @@ load(file.path(spruceDE, "controlVsdData.RData"))
 controlSpruceData <- controlData
 load(file.path(spruceDE, "fertilisedVsdData.RData"))
 fertilisedSpruceData <- fertilisedData
-
+# load(file.path(spruceDE, "combinedVsdData.RData"))
+# combinedSpruceData <- combinedData
 
 load(file.path(fungiDE, "controlVsdData.RData"))
 controlFungiData <- controlData
@@ -303,8 +328,7 @@ fertilisedFungiTime <- as.integer(substr(rownames(fertilisedFungiData),2,3))
 
 # Control profile matching
 ```{r controlMatching, echo=TRUE, message=FALSE}
-control.res <- profileSimilarity(controlSpruceData, controlFungiData, controlSpruceClusters, controlFungiClusters,
-                         controlSpruceGroup, controlFungiGroup, controlSpruceTime, controlFungiTime, 
+control.res <- profileSimilarity(controlSpruceData, controlFungiData, controlSpruceClusters, controlFungiClusters, controlSpruceGroup, controlFungiGroup, controlSpruceTime, controlFungiTime, 
                          "Spruce-control", "Fungi-control")
 
 control.res.sort <- control.res[order(control.res$score, decreasing = T),]
@@ -325,18 +349,28 @@ tail(control.res.sort)
 write.table(control.res.sort, file=here("results",paste0("controlProfileMatching_",specie,"_",Sys.Date(),".tsv")), sep='\t', quote=F, row.names=F)
 ```
 
-```{r}
-# spruceControl <- cluster2Network(controlSpruceData, controlSpruceClusters, "spruce")
-# fungiControl <- cluster2Network(controlFungiData, controlFungiClusters, "fungi")
-# write.table(rbind(spruceControl, fungiControl), file="controlClusterNetworkMeta.tsv", sep='\t', row.names = F, quote=F)
-# 
+```{r eval=FALSE, include=FALSE}
+spruceControl <- cluster2Network(controlSpruceData, controlSpruceClusters, "spruce")
+fungiControl <- cluster2Network(controlFungiData, controlFungiClusters, "fungi")
+write.table(rbind(spruceControl, fungiControl), 
+            file=here("results",paste0("controlClusterNetworkMeta",specie,"_",Sys.Date(),".tsv")),
+             sep='\t', row.names = F, quote=F)
+
 # spruceFertilised <- cluster2Network(fertilisedSpruceData, fertilisedSpruceClusters, "spruce")
 # fungiFertilised <- cluster2Network(fertilisedFungiData, fertilisedFungiClusters, "fungi")
-# write.table(rbind(spruceFertilised, fungiFertilised), file="fertilisedClusterNetworkMeta.tsv", sep='\t', row.names = F, quote=F)
+# 
+# write.table(rbind(spruceFertilised, fungiFertilised),
+#             file=here("results",paste0("fertilisedClusterNetworkMeta",specie,"_",Sys.Date(),".tsv"))
+#             , sep='\t', row.names = F, quote=F)
+```
+
+## Obtain profile degradation matrix
+```{r}
+load(here("env/cenococcum_controlDEG.RData"))
 ```
 
 
-```{r controlDEF}
+```{r controlDEF, eval=F}
 controlDEG <- getProfileDegradationMatrix(control.res.sort, 
                                           conditionSpruceClusters=controlSpruceClusters, 
                                           conditionFungiClusters=controlFungiClusters,
@@ -359,10 +393,13 @@ controlDEG <- getProfileDegradationMatrix(control.res.sort,
 
 ```
 
-```{r controlViolin}
+```{r, eval=F}
+save(controlDEG, file=here("env/cenococcum_controlDEG.RData"))
+```
 
+## Reduced violin plot
+```{r controlViolin, warning=FALSE}
 controlDEG.df <- controlDEG[controlDEG$control_score>0,]
-
 controlDEG.df <- controlDEG.df[order(controlDEG.df$degradation, decreasing = F),]
 controlDEG.df <- melt(controlDEG.df[,c("control_score","fertilised_score")])
  
@@ -372,20 +409,22 @@ p <- ggplot(controlDEG.df, aes(x=variable, y=value  )) +
   stat_summary(fun.y=median, geom="point", size=2, color="red") +
   geom_boxplot(width=0.1)
 
+print(p)
+```
 
-  png(here("results", paste0("controlDEGplot_",specie,"_",Sys.Date(),".png")),
-   units="px", width=1920, height=1080, res=300)
-  print(p)
-  dev.off()
+```{r eval=FALSE, include=FALSE}
+png(here("results", paste0("controlDEGplot_",specie,"_",Sys.Date(),".png")),
+ units="px", width=1920, height=1080, res=300)
+print(p)
+dev.off()
 
 write.table(controlDEG.df, file=here("results", paste0("controlDEG_",specie,"_",Sys.Date(),"_df_sort.tsv")), quote = F, sep='\t', row.names = F)
 
 ```
 
-```{r controlViolin2}
-
+## Full violin plot
+```{r controlViolin2, warning=FALSE}
 controlDEG.df <- controlDEG
-
 controlDEG.df <- controlDEG.df[order(controlDEG.df$degradation, decreasing = F),]
 controlDEG.df <- melt(controlDEG.df[,c("control_score","fertilised_score")])
  
@@ -395,12 +434,14 @@ p <- ggplot(controlDEG.df, aes(x=variable, y=value  )) +
   stat_summary(fun.y=median, geom="point", size=2, color="red") +
   geom_boxplot(width=0.1)
 
+print(p)
+```
 
-  png(here("results", paste0("controlDEGplot_",specie,"_",Sys.Date(),"_full.png")),
-   units="px", width=1920, height=1080, res=300)
+```{r eval=FALSE, include=FALSE}
+ # png(here("results", paste0("controlDEGplot_",specie,"_",Sys.Date(),"_full.png")),
+   #units="px", width=1920, height=1080, res=300)
   print(p)
-  dev.off()
-
+ # dev.off()
 ```
 
 
@@ -409,7 +450,8 @@ controlAvg <- mean(controlDEG$degradation)
 print(controlAvg)
 ```
 
-Get the maximum difference.
+## Significant degradations
+Get the maximum difference
 
 ```{r}
 res.pos <- controlDEG %>% 
@@ -425,51 +467,195 @@ res.neg <- controlDEG %>%
 
 
 res.neg <- res.neg[order(res.neg$degradation, decreasing = T),]
+
+write.table(rbind(res.pos, res.neg), file=here("results", paste0("maxDifference_",specie,"_",Sys.Date(),".tsv")), quote = F, sep='\t', row.names = F)
 ```
+
+
+Get the top 20 most important changes(10 degradations, 10 recovers)
 ```{r}
 mostDegraded <- rbind(head(res.pos, n=5),
-tail(res.pos, n=5),
-head(res.neg, n=5),
-tail(res.neg, n=5))
-
+                      tail(res.pos, n=5),
+                      head(res.neg, n=5),
+                      tail(res.neg, n=5))
+mostDegraded
 ```
 
-
+Enrich & plot results
 ```{r}
-
-
-enrichThis <- function(data1, data2, clusterData1, group1, time1, group2, time2, clus1, background1, url ='pabies', type="go") {
+enrichThis <- function(data1, data2, clusterData1, group1, time1, group2, time2, clus1, background1, url ='pabies', type="go", title1="", title2="") {
 
   results <- list()
-  
-  print(clusterData1[clusterData1$cluster==gsub("i","", clus1),]$gene)
   eigen <- getEigenGenes(data1, clusterData1[clusterData1$cluster==gsub("i","", clus1),]$gene)
   
   genes1 <- if(grepl("i", clus1, fixed = TRUE)){
-    print("negative")
     eigen$negative
-  } else {
+  }else {
     eigen$positive
-  }
-  
+    }
+    
   genes2 <- intersect(genes1, colnames(data2))
+  print(genes1)
+  print(genes2)
+  p1 <- plotEigengene(data1, genes1, group1, time1, title=title1)
+  p2 <- plotEigengene(data2, genes2, group2, time2, title=title2)
+  genes3 <- intersect(genes1, genes2)
+  print(genes3)
+  data3 <- rbind(data1[,genes3], data2[,genes3])
+  
+  p3 <- plotEigengene(data3, genes3, c(group1, group2),
+                      c(time1,time2), title="")
+    
+  enr1 <- gopher(genes2, background=background1, url=url, task = type)
+  
+  results$plot1 <- p1
+  results$plot2 <- p2
+  
+  results$enr1 <- enr1
 
-    p1 <- plotEigengene(data1, genes1, group1, time1)
-    
-    p2 <- plotEigengene(data2, genes2, group2, time2)
-    
-    enr1 <- gopher(genes2, background=background1, url=url, task = type)
-    
-    results$plot1 <- p1
-    results$plot2 <- p2
-    results$enr1 <- enr1
-    
-    
-    return(results)
-    
+  return(results)
 }
 ```
-```{r}
+
+## Enrich & plot
+```{r superLoop, results='asis'}
+None <- lapply(10, function(x) {
+  spruceClus <- mostDegraded[x,]$`Spruce-control`
+  fungiClus <- mostDegraded[x,]$`Fungi-control`
+  cat("\n")
+  cat("<hr>")
+  cat(paste0("<H3>Spruce cluster: ", spruceClus, ". Fungi cluster ",fungiClus, ". Degradation: ", mostDegraded[x,]$degradation,"</H3>"))
+  cat("\n\n")
+  spruceMulti <- enrichThis(controlSpruceData,  fertilisedSpruceData,
+             controlSpruceClusters,              controlSpruceGroup, 
+             controlSpruceTime, 
+             fertilisedSpruceGroup, 
+             fertilisedSpruceTime, 
+             spruceClus, 
+             controlSpruceClusters$gene, url="pabies", type=c("go","pfam","mapman","kegg"),
+             title1 = paste("Spruce control cluster", spruceClus, "with control data"),
+             title2 = paste("Spruce control cluster", spruceClus, "with fertilised data")
+            
+             )
+  
+  fungiMulti <- enrichThis(controlFungiData,  fertilisedFungiData,
+             controlFungiClusters, 
+             controlFungiGroup, 
+             controlFungiTime, 
+             fertilisedFungiGroup, 
+             fertilisedFungiTime, 
+             fungiClus, 
+             controlFungiClusters$gene, url=paste0("fungi2011_",specie), type="go",
+             title1 = paste("Fungi control cluster", fungiClus, "with control data"),
+             title2 = paste("Fungi control cluster", fungiClus, "with fertilised data")
+             )
+
+  fungiMultiGeneric <- enrichThis(controlFungiData,  fertilisedFungiData,
+           controlFungiClusters, 
+           controlFungiGroup, 
+           controlFungiTime, 
+           fertilisedFungiGroup, 
+           fertilisedFungiTime, 
+           fungiClus, 
+           controlFungiClusters$gene, url="fungi2011", type=c("cog","ko","ko_pathway","kog"),
+             title1 = paste("Fungi control cluster", fungiClus, "with control data"),
+             title2 = paste("Fungi control cluster", fungiClus, "with fertilised data") )
+
+
+  #png(here("results", paste0("mostdegraded_", spruceClus, "_",fungiClus, "_", Sys.Date(), ".png")), width = 1920, heigh=1080)
+  
+  #grid.arrange(spruceMulti$plot1, spruceMulti$plot2, fungiMulti$plot1, fungiMulti$plot2, ncol=2)
+  
+  cat(paste("<H4>Profiles plot</H4>"))
+  cat("\n")
+  # print(spruceMulti$plot1)
+  #   cat("\n")
+  # print(spruceMulti$plot2)
+  #   cat("\n")
+  # print(fungiMulti$plot1)
+  #   cat("\n")
+  # print(fungiMulti$plot2)
+  #   cat("\n")
+  
+    print(spruceMulti$plot3)
+    cat("\n")
+  print(fungiMulti$plot3)
+    cat("\n")
+  #dev.off()
+  
+  cat(paste("<H4>Spruce treemaps</H4>"))
+  cat("\n")
+  None <- sapply(c("go","pfam","mapman","kegg"), function(x){
+    if(!is.null(spruceMulti$enr1[[x]])) {
+      #png(here("results", paste0("treemap_spruce_", spruceClus,"_",x, "_", Sys.Date(), ".png")), width = 1920, heigh=1080)
+      if(x=="kegg"){
+        spruceMulti$enr1[[x]] <- koTranslate(spruceMulti$enr1[[x]])
+      }
+
+      plotEnrichedTreemap(spruceMulti$enr1, enrichment = x, namespace = "none", title=paste(x,"enrichment"))
+      cat("\n")
+      cat("<hr>")
+      #dev.off()
+    }
+    
+  })
+  
+  cat(paste("<H4>Fungi treemaps</H4>"))
+  cat("\n\n")
+  if(!is.null(fungiMulti$enr1$ko_pathway)) {
+    #png(here("results", paste0("treemap_fungi_",fungiClus,"_", "ko_pathway_", Sys.Date(), ".png")), width = 1920, heigh=1080)
+    plotEnrichedTreemap(fungiMulti$enr1, enrichment = "ko_pathway", namespace = "none",title=paste(x,"enrichment"))
+      cat("\n")
+      cat("<hr>")
+    #dev.off()
+  }
+  
+    None <- sapply(c("cog","ko","ko_pathway","kog"), function(x){
+    if(!is.null(fungiMultiGeneric$enr1[[x]])) {
+      
+      if(x=="ko" || x=="ko_pathway"){
+        fungiMultiGeneric$enr1[[x]] <- koTranslate(fungiMultiGeneric$enr1[[x]])
+      }
+      #png(here("results", paste0("treemap_fungi_", fungiClus,"_",x, "_", Sys.Date(), ".png")), width = 1920, heigh=1080)
+      plotEnrichedTreemap(fungiMultiGeneric$enr1, enrichment = x, namespace = "none",title=paste(x,"enrichment"))
+      cat("\n")
+      cat("<hr>")
+      #dev.off()
+    }
+    
+  })
+      cat("\n")
+      cat("<hr>")
+})
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r, eval=F}
 
 spruceClus <- mostDegraded[1,]$`Spruce-control`
 fungiClus <- mostDegraded[1,]$`Fungi-control`
@@ -491,9 +677,18 @@ fungiMulti <- enrichThis(controlFungiData,  fertilisedFungiData,
            fertilisedFungiTime, 
            fungiClus, 
            controlFungiClusters$gene, url=paste0("fungi2011_",specie), type="go")
+fungiMultiGeneric <- enrichThis(controlFungiData,  fertilisedFungiData,
+           controlFungiClusters, 
+           controlFungiGroup, 
+           controlFungiTime, 
+           fertilisedFungiGroup, 
+           fertilisedFungiTime, 
+           fungiClus, 
+           controlFungiClusters$gene, url="fungi2011", type=c("cog","ko","ko_pathway","kog") )
 
 ```
-```{r}
+
+```{r, eval=F, include=F}
 par(mfrow=c(2,2))
 spruceMulti$plot1
 spruceMulti$plot2
@@ -501,12 +696,21 @@ fungiMulti$plot1
 fungiMulti$plot2
 
 plotEnrichedTreemap(spruceMulti$enr1, enrichment = "go", namespace = "BP")
+plotEnrichedTreemap(spruceMulti$enr1, enrichment = "mapman", namespace = "none")
+plotEnrichedTreemap(spruceMulti$enr1, enrichment = "pfam", namespace = "none")
+plotEnrichedTreemap(spruceMulti$enr1, enrichment = "kegg", namespace = "none")
 plotEnrichedTreemap(fungiMulti$enr1, enrichment = "go", namespace = "BP")
-
+plotEnrichedTreemap(fungiMultiGeneric$enr1, enrichment = "cog", namespace = "none")
+plotEnrichedTreemap(fungiMultiGeneric$enr1, enrichment = "ko", namespace = "none")
+plotEnrichedTreemap(fungiMultiGeneric$enr1, enrichment = "ko_pathway", namespace = "none")
+plotEnrichedTreemap(fungiMultiGeneric$enr1, enrichment = "kog", namespace = "none")
 ```
 
-```{r, eval=F}
+```{r, eval=F, include=F}
 save.image(file.path(here("env"),"env.RData"))
 ```
 
-
+# Session information
+```{r}
+sessionInfo()
+```
