@@ -1,0 +1,193 @@
+---
+title: "Flakaliden split cluster plots control + fertilised"
+author: "Alonso Serrano"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+ 
+
+## Prerequisites
+Each sample, file name, time, condition and replica number.
+
+# Setup
+Load libraries
+```{r, message=FALSE}
+library(here)
+source(here("UPSCb-common/src/R/gopher.R"))
+source(here("Rtoolbox/src/utilsDE.r"))
+source(here("Rtoolbox/src/getEigengenes.R"))
+source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
+source(here("Rtoolbox/src/plotEigenGene.R"))
+source(here("Rtoolbox/src/infomapTools.R"))
+source("~/scripts/koPathwayDiseaesCleanup/koProcessing.R")
+```
+
+
+Set the project folder
+```{r spruce, eval=F, include=FALSE}
+#SPRUCE
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/14_SpruceRoots_Project"
+deFolder <- file.path(projectFolder,"DE")
+
+clusterFolder <- file.path(projectFolder,"spruce-networks/control/cluster")
+clusterFile <- file.path(clusterFolder, "InfomapClusters.tsv")
+
+controlDataFile <- file.path(deFolder, "controlVsdData.RData")
+fertilisedDataFile <- file.path(deFolder, "fertilisedVsdData.RData")
+load(controlDataFile)
+load(fertilisedDataFile)
+
+rownames(controlData) <- gsub("-", "", rownames(controlData))
+rownames(fertilisedData) <- gsub("-", "", rownames(fertilisedData))
+
+infomapClusters <- read.delim(clusterFile, stringsAsFactors=FALSE)
+
+clusterNames <- unique(infomapClusters$cluster)
+```
+
+```{r ko, eval=F, include=FALSE}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/"
+deFolder <- file.path(projectFolder,"DE")
+
+clusterFolder <- file.path(projectFolder,"networks/control/cluster")
+clusterFile <- file.path(clusterFolder, "InfomapClusters.tsv")
+
+controlDataFile <- file.path(deFolder, "controlVsdData.RData")
+fertilisedDataFile <- file.path(deFolder, "fertilisedVsdData.RData")
+load(controlDataFile)
+load(fertilisedDataFile)
+
+infomapClusters <- read.delim(clusterFile, stringsAsFactors=FALSE)
+
+clusterNames <- unique(infomapClusters$cluster)
+```
+
+```{r corti, eval=F, include=FALSE}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/fungi-species/cortinarius_glaucopus"
+deFolder <- file.path(projectFolder,"DE")
+
+clusterFolder <- file.path(projectFolder,"networks/control/results/aggregated")
+clusterFile <- file.path(clusterFolder, "infomapClusters.tsv")
+
+controlDataFile <- file.path(deFolder, "controlVsdData.RData")
+fertilisedDataFile <- file.path(deFolder, "fertilisedVsdData.RData")
+load(controlDataFile)
+load(fertilisedDataFile)
+
+infomapClusters <- read.delim(clusterFile, stringsAsFactors=FALSE)
+
+clusterNames <- unique(infomapClusters$cluster)
+```
+
+```{r pilo, eval=T, include=FALSE}
+projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2011/fungi-species/cenococcum_geophilum//"
+deFolder <- file.path(projectFolder,"DE")
+
+clusterFolder <- file.path(projectFolder,"networks/control/results/aggregated")
+clusterFile <- file.path(clusterFolder, "infomapClusters.tsv")
+
+controlDataFile <- file.path(deFolder, "controlVsdData.RData")
+fertilisedDataFile <- file.path(deFolder, "fertilisedVsdData.RData")
+load(controlDataFile)
+load(fertilisedDataFile)
+
+infomapClusters <- read.delim(clusterFile, stringsAsFactors=FALSE)
+
+clusterNames <- unique(infomapClusters$cluster)
+```
+
+```{r splitClusters}
+splitClusters <- lapply(clusterNames, function(cluster){
+  theCluster <- infomapClusters[infomapClusters$cluster==cluster,]$gene
+  res <- getEigenGenes(controlData, theCluster)
+  res
+})
+
+names(splitClusters) <- clusterNames
+```
+
+
+
+```{r splitEnr, eval=T}
+splitPlot <- lapply(seq_along(splitClusters), function(i){
+
+  #print(names(splitedCluster))
+#  x <- enrichClusters(splitedCluster, background = background)
+#  
+  print(names(splitClusters[i]))
+  
+   enr <- lapply(seq_along(splitClusters[[i]]), function(j) {
+     x <- splitClusters[[i]][[j]]
+    if(length(x) > 1){
+      print(length(x))
+      commonGenes <- intersect(intersect(x,colnames(controlData)),colnames(fertilisedData))
+      # print(length(colnames(controlData)))
+      # print(length(colnames(fertilisedData)))
+      # print(length(commonGenes))
+      print(commonGenes)
+      cData <- controlData[, commonGenes]
+      fData <- fertilisedData[, commonGenes]
+      # print((cData))
+      # print((fData))
+      combData <- rbind(cData, fData)
+      time= as.integer(substr(rownames(combData), 2,3))
+      cond= substr(rownames(combData), 4,4)
+      thisTitle <- if(names(splitClusters[[i]][j]) == "positive") {
+        names(splitClusters[i])
+      } else {
+        paste0(names(splitClusters[i]),"i")
+      }
+           # print(plotEigengene(combData, commonGenes, cond, 
+           #    time, timeUnits = "Week", 
+           #    title = paste("control only", thisTitle),
+           #    plotBothProfiles = F, colors=c("#009444", "#BE9230")))
+           # 
+           #      print(plotEigengene(combData, commonGenes, cond, 
+           #    time, timeUnits = "Week", 
+           #    title = paste("fertilised only", thisTitle),
+           #    plotBothProfiles = F, colors=c("#009444", "#BE9230")))
+                
+     #print(dim(combData))
+     if(length(commonGenes)>1){ 
+       print(plotEigengene(combData, commonGenes, cond, 
+                time, timeUnits = "Week", 
+                title = thisTitle,
+                plotBothProfiles = F, colors=c("#009444", "#BE9230")))
+     } else {
+       if(length(intersect(x,colnames(controlData)))>1){ 
+        print(plotEigengene(controlData, intersect(x,colnames(controlData)), condition=substr(rownames(controlData), 4,4),
+            time=as.integer(substr(rownames(controlData), 2,3)), timeUnits = "Week",
+            title = paste("control only", thisTitle),
+            plotBothProfiles = F, colors=c("#009444", "#BE9230")))
+       } else {
+          plot.new()
+       }
+       
+        if(length(intersect(x,colnames(fertilisedData)))>1){ 
+        print(plotEigengene(fertilisedData, intersect(x,colnames(fertilisedData)), condition=substr(rownames(fertilisedData), 4,4),
+            time=as.integer(substr(rownames(fertilisedData), 2,3)), timeUnits = "Week",
+            title = paste("fertilised only", thisTitle),
+            plotBothProfiles = F, colors=c("#BE9230", "#BE9230")))
+        } else {
+          plot.new()
+        }
+    }
+     1
+    }else{
+      NULL
+    }
+      
+  })
+})
+
+```
+
+
+
+

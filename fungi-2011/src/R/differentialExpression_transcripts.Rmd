@@ -122,7 +122,8 @@ Read metadata
 ```{r}
 meta <- data.frame(week=substr(colnames(data), 2, 3),
                    treatment=substr(colnames(data), 4, 4),
-                   group=substr(colnames(data), 2, 4))
+                   group=substr(colnames(data), 2, 4),
+                   stringsAsFactors = T)
 ```
 
 
@@ -316,18 +317,18 @@ plotUpAndDown(combined.res.filter)
 
 ## DE Fertilisation vs Control
 ```{r}
-design(ddsMatrix) <- ~Treatment
+design(ddsMatrix) <- ~treatment
 
 ddsFungiTreatment  <- DESeq(ddsMatrix)
 
 resFungiTreatment <- list( FertilisedvsControl = results(ddsFungiTreatment ,
-        name= "Treatment_F_vs_C",
+        #name= "treatment F vs C",
         filter = rowMedians(counts(ddsFungiTreatment )),
         parallel = FALSE) 
         )
 
-save(ddsFungiTreatment, resFungiTreatment, file=file.path(projectFolder, "DE", "ddsTreatment.RData"))
-de4network(resFungiTreatment, file.path(deFolder,"deFvsC.tsv"))
+save(ddsFungiTreatment, resFungiTreatment, file=file.path(deFolder, "ddsTreatment_transcripts.RData"))
+de4network(resFungiTreatment, file.path(deFolder,"deFvsC_transcripts.tsv"))
 resFungiTreatment.filter <- lapply(resFungiTreatment, filterDE)
 
 plotUpAndDown(resFungiTreatment.filter)
