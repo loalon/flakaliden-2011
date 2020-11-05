@@ -1,5 +1,5 @@
 ---
-title: "Bulk clustering analysis v2"
+title: "Bulk clustering analysis v3"
 author: "Alonso Serrano"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: html_document
@@ -12,9 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 # SETUP
 ```{r include=T}
 library(stringr)
-specie <- "cenococcum_geophilum"
+#specie <- "cenococcum_geophilum"
 #specie <- "cortinarius_glaucopus"
-#specie <- "piloderma_croceum"
+specie <- "piloderma_croceum"
 speciesName <- gsub("_"," ",str_to_title(specie))
 
 library(data.table)
@@ -174,12 +174,12 @@ bulkClusterize <- function(criteria, spruceClusters, fungiClusters) {
 
 # Bulk analysis
 ```{r , results='asis',message=FALSE, warning=FALSE,  fig.hold='hold', out.width="50%"}
-criteriaList <- list(criteria1_pos=criteria1[criteria1$fertilised_score <0,],
-                     criteria1_neg=criteria1[criteria1$fertilised_score >0,],
-                     criteria3_pos=criteria3[criteria3$degradation<0,],
-                     criteria3_neg=criteria3[criteria3$degradation>0,],
-                     criteria4_pos=criteria4[criteria4$degradation<0,],
-                     criteria4_neg=criteria4[criteria4$degradation>0,]
+criteriaList <- list(criteria1_pos=criteria1[criteria1$fertilised_score > 0,],
+                     criteria1_neg=criteria1[criteria1$fertilised_score < 0,],
+                     criteria3_pos=criteria3[criteria3$fertilised_score > 0,],
+                     criteria3_neg=criteria3[criteria3$fertilised_score < 0,],
+                     criteria4_pos=criteria4[criteria4$fertilised_score > 0,],
+                     criteria4_neg=criteria4[criteria4$fertilised_score < 0,]
                      )
 
 for ( i in seq_along(criteriaList)) {

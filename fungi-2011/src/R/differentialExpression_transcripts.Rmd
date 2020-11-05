@@ -360,21 +360,19 @@ That will remove genes with zero or almost zero expression.
 For the network construction with Seidr we need a headless files with the data and a file only with the gene names
 
 ### Combined
-```{r,eval=FALSE}
+```{r,eval=T}
 vsdCombined <- vst(dds, blind=FALSE)
 combinedData <- t(assay(vsdCombined))
 combinedData <- combinedData[,which(colMads(as.matrix(combinedData)) > 0)]
-save(combinedData, file=file.path(deFolder,"combinedVsdData.RData"))
-write.table(combinedData, file =file.path(deFolder,"fungi2011Combined.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
-writeLines(colnames(combinedData), con=file.path(deFolder,"fungi2011CombinedNames.txt"))
+save(combinedData, file=file.path(deFolder,"transcriptsCombinedVsdData.RData"))
+write.table(combinedData, file =file.path(deFolder,"transcriptsFungi2011Combined.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(combinedData), con=file.path(deFolder,"transcriptsFungi2011CombinedNames.txt"))
 ```
 
 ### Control & fertilised
 In order to make this individual networks, we need to specify a new design to obtain the vst data using model awareness. In this case, the model should be treatment.
-```{r ,eval=FALSE}
-ddsSplit <- dds
-design(ddsSplit) <- ~Treatment
-vsdSplit <- vst(ddsSplit, blind=F)
+```{r , eval=T}
+vsdSplit <- vst(ddsFungiTreatment, blind=F)
 vsdSplitData <- t(assay(vsdSplit))
 controlData <- vsdSplitData[grep("C",rownames(vsdSplitData)),]
 controlData <- controlData[,which(colMads(as.matrix(controlData)) > 0)]
@@ -382,18 +380,18 @@ controlData <- controlData[,which(colMads(as.matrix(controlData)) > 0)]
 fertilisedData <- vsdSplitData[grep("F",rownames(vsdSplitData)),]
 fertilisedData <- fertilisedData[,which(colMads(as.matrix(fertilisedData)) > 0)]
 
-save(controlData, file=file.path(deFolder,"controlVsdData.RData"))
-write.table(controlData, file = file.path(deFolder,"fungi2011Control.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
-writeLines(colnames(controlData), con=file.path(deFolder,"fungi2011ControlNames.txt"))
+save(controlData, file=file.path(deFolder,"transcriptsControlVsdData.RData"))
+write.table(controlData, file = file.path(deFolder,"transcriptsFungi2011Control.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(controlData), con=file.path(deFolder,"transcriptsFungi2011ControlNames.txt"))
 
-save(fertilisedData, file=file.path(deFolder,"fertilisedVsdData.RData"))
-write.table(fertilisedData, file = file.path(deFolder,"fungi2011Fertilised.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
-writeLines(colnames(fertilisedData), con=file.path(deFolder,"fungi2011FertilisedNames.txt"))
+save(fertilisedData, file=file.path(deFolder,"transcriptsFertilisedVsdData.RData"))
+write.table(fertilisedData, file = file.path(deFolder,"transcriptsFungi2011Fertilised.tsv"), sep='\t', row.names=FALSE, col.names=FALSE)
+writeLines(colnames(fertilisedData), con=file.path(deFolder,"transcriptsFungi2011FertilisedNames.txt"))
 
 ```
 
 ## DE results
-For downstream analysis we export each set of results to a tsv file containing the padj and log2foldchange values for each comparition.
+For downstream analysis we export each set of results to a tsv file containing the padj and log2foldchange values for each comparison.
 We export the results unfiltered
 ```{r exportDEresults, eval=FALSE, message=FALSE, include=FALSE, results="hide"}
 de4network(control.res, file.path(deFolder,"deControl.tsv"))
@@ -407,6 +405,7 @@ We set the background
 ```{r}
 background <- read.table(file.path(deFolder, "background.txt"), sep='\t', header=F, stringsAsFactors = F)[,1] 
 ```
+
 Now we use gopher to obtain the enrichment results for up and down expressed genes
 ```{r}
 control.res.enr <- getDEenrichment(control.res.filter, background)
@@ -418,6 +417,7 @@ combined.res.enr <- getDEenrichment(combined.res.filter, background)
 ```{r}
 plotResults(control.res.enr)
 ```
+
 ### Fertilised
 ```{r}
 plotResults(fertilised.res.enr)
@@ -428,14 +428,9 @@ plotResults(fertilised.res.enr)
 plotResults(combined.res.enr)
 ```
 
-
-
 # Session information
 ```{r}
 sessionInfo()
 ```
-
-
-
 
 # References

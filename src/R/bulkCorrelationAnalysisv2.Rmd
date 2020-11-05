@@ -12,9 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 # SETUP
 ```{r include=T}
 library(stringr)
-#specie <- "cenococcum_geophilum"
+specie <- "cenococcum_geophilum"
 #specie <- "cortinarius_glaucopus"
-specie <- "piloderma_croceum"
+#specie <- "piloderma_croceum"
 speciesName <- gsub("_"," ",str_to_title(specie))
 
 library(data.table)
