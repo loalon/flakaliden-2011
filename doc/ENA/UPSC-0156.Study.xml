@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<STUDY_SET xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ftp://webin.ebi.ac.uk/meta/xsd/sra_1_5/SRA.study.xsd">
+ <STUDY alias="UPSC-0156" center_name="UPSC">
+  <DESCRIPTOR>
+   <STUDY_TITLE>Seasonal Root and Needle Transcriptomics 2012</STUDY_TITLE>
+   <STUDY_TYPE existing_study_type="RNASeq"/>
+   <STUDY_ABSTRACT>The health, growth and fitness of boreal forest trees is impacted and improved by their associated fungal and bacterial microbiomes. Microbial, as well as plant host gene expression and functional activity can be assayed with RNA sequencing (RNA-Seq) data from host samples.As a study system we use a panel of root and needle samples from the tree species Picea abies (Norway spruce), growing at the Flakaliden forest research site in northern boreal Sweden, which is part of a controlled short- and long-term nutrient addition experiment including untreated control plots.</STUDY_ABSTRACT>
+  </DESCRIPTOR>
+ </STUDY>
+</STUDY_SET>

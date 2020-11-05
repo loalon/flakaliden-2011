@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="receipt.xsl"?>
+<RECEIPT receiptDate="2020-11-05T11:23:19.686Z" submissionFile="UPSC-0155-2.Submission.xml" success="true">
+     <EXPERIMENT accession="ERX4670815" alias="UPSC-0155-E0112" status="PRIVATE"/>
+     <RUN accession="ERR4801094" alias="UPSC-0155-R0112" status="PRIVATE"/>
+     <SAMPLE accession="ERS5287637" alias="UPSC-0155-S0112" status="PRIVATE">
+          <EXT_ID accession="SAMEA7531171" type="biosample"/>
+     </SAMPLE>
+     <SUBMISSION accession="ERA3063407" alias="UPSC-0155-2"/>
+     <MESSAGES>
+          <INFO>Submission has been committed.</INFO>
+     </MESSAGES>
+     <ACTIONS>ADD</ACTIONS>
+     <ACTIONS>ADD</ACTIONS>
+     <ACTIONS>ADD</ACTIONS>
+</RECEIPT>

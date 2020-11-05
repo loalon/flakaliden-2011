@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="receipt.xsl"?>
+<RECEIPT receiptDate="2019-12-15T11:17:37.805Z" submissionFile="UPSC-0160.Submission.xml" success="true">
+     <PROJECT accession="PRJEB35820" alias="UPSC-0160" status="PRIVATE" holdUntilDate="2021-12-11Z"/>
+     <SUBMISSION accession="ERA2317773" alias="UPSC-0160"/>
+     <MESSAGES>
+          <INFO>All objects in this submission are set to private status (HOLD).</INFO>
+          <INFO>Submission has been committed.</INFO>
+          <INFO>This submission is a TEST submission and will be discarded within 24 hours</INFO>
+     </MESSAGES>
+     <ACTIONS>ADD</ACTIONS>
+     <ACTIONS>HOLD</ACTIONS>
+</RECEIPT>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<STUDY_SET xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ftp://webin.ebi.ac.uk/meta/xsd/sra_1_5/SRA.study.xsd">
+ <STUDY alias="UPSC-0155" center_name="UPSC">
+  <DESCRIPTOR>
+   <STUDY_TITLE>Seasonal Root Transcriptomics 2011</STUDY_TITLE>
+   <STUDY_TYPE existing_study_type="RNASeq"/>
+   <STUDY_ABSTRACT>The boreal forests of the northern latitudes constitute the second largest biome in the world, and are characterised by challenging climatic conditions and nutrient-poor soils. Consequently, nutrient acquisition is often aided by the association of tree roots with a diverse host of ectomycorrhizal fungi. Here, we present a high-resolution transcriptomic atlas of the ectomycorrhizal symbiosis between Norway spruce and its diverse microbiome over the course of a growing season, and in response to alteration of the soil nutrient-status. We carried out RNA sequencing on the fine roots of mature Norway spruce, collected at 20 time points over the growing season (May to October), while in parallel, metatranscriptomics was carried out on these samples to monitor fungal gene expression and to catalogue their taxonomic composition. These experiments were repeated using on-site forest plots that have received 25 years of optimised nutrient mixture application, thus relieving the tree of any nutrient limitation.</STUDY_ABSTRACT>
+  </DESCRIPTOR>
+ </STUDY>
+</STUDY_SET>

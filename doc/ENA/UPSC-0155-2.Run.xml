@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RUN_SET xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ftp://webin.ebi.ac.uk/meta/xsd/sra_1_5/SRA.run.xsd">
+ <RUN alias="UPSC-0155-R0112" center_name="UPSC" run_center="SciLifeLab" run_date="2012-04-25T10:00:00">
+  <EXPERIMENT_REF refname="UPSC-0155-E0112"/>
+  <DATA_BLOCK>
+   <FILES>
+    <FILE filename="UPSC-0155/2_120823_AD16FAACXX_229_197_index27_1.fq.gz" filetype="fastq" checksum_method="MD5" checksum="b48b94151b5053284570045bac316a0b"/>
+    <FILE filename="UPSC-0155/2_120823_AD16FAACXX_229_197_index27_2.fq.gz" filetype="fastq" checksum_method="MD5" checksum="7bd46cb8ad3b6b05ff1afdccff5327fe"/>
+   </FILES>
+  </DATA_BLOCK>
+ </RUN>
+</RUN_SET>

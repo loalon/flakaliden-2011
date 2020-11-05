@@ -1,0 +1,3 @@
+ExperimentTitle,SampleName,SampleDescription,SequencingDate,FileName,FileLocation
+Seasonal Root Transcriptomics 2011,W28_C2,Week28_control,2012-04-25T10:00:00,2_120823_AD16FAACXX_229_197_index27_1.fq.gz,/mnt/picea/projects/spruce/vhurry/spruce-flakaliden-root-2011/raw
+Seasonal Root Transcriptomics 2011,W28_C2,Week28_control,2012-04-25T10:00:00,2_120823_AD16FAACXX_229_197_index27_2.fq.gz,/mnt/picea/projects/spruce/vhurry/spruce-flakaliden-root-2011/raw

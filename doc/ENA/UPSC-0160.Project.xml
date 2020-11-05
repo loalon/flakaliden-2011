@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PROJECT_SET xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<PROJECT center_name="UPSC" alias="UPSC-0160">
+<TITLE>Impact of seasonality and nutrient addition on Norway spruce and its associated microbial communities</TITLE>
+<DESCRIPTION>This umbrella project includes three sequencing datasets originating from samples collected at the Flakaliden experimental site in northern Sweden, where the effect of seasonality and long-term nutrient addition on a stand of Norway spruce is being tested. 
+PRJEB21692 contains DNA amplicon sequencing data of the bacterial 16S and the fungal ITS1 region, collected over four seasonal timepoints and differing nutrient status sites. Sampled were spruce roots and needles, as well as soil from the site.
+PRJEB35783 contains RNA-sequencing from the matching root and needle samples.
+PRJEB35805 contains RNA-sequencing data from Norway spruce roots sampled through the growing season 2011.</DESCRIPTION>
+<UMBRELLA_PROJECT/>
+<RELATED_PROJECTS>
+<RELATED_PROJECT>
+<CHILD_PROJECT accession="PRJEB21692"/>
+</RELATED_PROJECT>
+<RELATED_PROJECT>
+<CHILD_PROJECT accession="PRJEB35805"/>
+</RELATED_PROJECT>
+<RELATED_PROJECT>
+<CHILD_PROJECT accession="PRJEB35783"/>
+</RELATED_PROJECT>
+</RELATED_PROJECTS>
+</PROJECT>
+</PROJECT_SET>

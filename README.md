@@ -2,14 +2,21 @@
 ## Common  
 Folder `common/src/R` 
 Folder `common/src/python` 
- 
+
+## doc
+Folder containing metadata and the ENA xml submission files 
+
 ## Spruce 2011  
+Folder `spruce-roots-2011/pipeline`
+* pre-processing scripts
+
 Folder `spruce-roots-2011/src/R` 
 * differentialExpression.Rmd  
   * Biological QA
   * Differential expression analysis
   * Data preparation for Seidr
 * networkClustering.Rmd  
+
 
 ## Spruce 2012  
 Folder `spruce-roots-2012/src/R` 

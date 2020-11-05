@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SUBMISSION_SET xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ftp://webin.ebi.ac.uk/meta/xsd/sra_1_5/SRA.submission.xsd">
+ <SUBMISSION alias="UPSC-0155-2" center_name="UPSC">
+  <ACTIONS>
+   <ACTION>
+    <ADD source="UPSC-0155-2.Sample.xml" schema="sample"/>
+   </ACTION>
+   <ACTION>
+    <ADD source="UPSC-0155-2.Experiment.xml" schema="experiment"/>
+   </ACTION>
+   <ACTION>
+    <ADD source="UPSC-0155-2.Run.xml" schema="run"/>
+   </ACTION>
+  </ACTIONS>
+ </SUBMISSION>
+</SUBMISSION_SET>
