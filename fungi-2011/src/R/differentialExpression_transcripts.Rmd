@@ -16,7 +16,7 @@ fungi 2011 data..
 * 
 
 ## Prerequisites
-Transcript coutns file or megaData
+Transcript counts file or megaData
 
 A metadata file containing all the information related to each sample, file name, time, condition and replica number.
 

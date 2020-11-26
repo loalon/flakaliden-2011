@@ -1,36 +1,29 @@
----
-title: "funGuild"
-author: "Alonso Serrano"
-date: "`r Sys.Date()`"
-output:
- html_document:
-   toc: true
-   number_sections: true
----
+##################################################
+## Project: Flakaliden 2011
+## Script purpose: Generate megadata for fungi 2012
+## data. Megadata facilitates the downstream analysis
+## by adding the information into a single RData file.
+## 
+## Date: 200420
+## Author: Alonso Serrano
+## Mail: alonso.serrano@slu.se
+##       bioinformatics@loalon.com
+##################################################
+##################################################
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r loadLibraries}
-#library("DESeq2")
 library(dplyr)
-```
 
-```{r files}
-#
+# load data
 projectFolder <- "/mnt/picea/projects/spruce/vhurry/fungi-flakaliden-2012"
 deFolder <- file.path(projectFolder,"DE")
 dataFolder <- file.path(projectFolder,"data")
 
-#guildFile <- file.path(dataFolder, "fungi.guilds.tsv")
 rawFile <- file.path(dataFolder, "Assembly_2012.raw.tsv")
 metaFile <- file.path(dataFolder, "meta.tsv")
-```
 
-```{r processData}
 data <- read.table(rawFile, header = T, sep='\t', comment.char = "", quote="", row.names = 1, stringsAsFactors = F)
 
+# load metadata and cleanup
 meta <-read.table(metaFile, header = T, sep=';', comment.char = "", stringsAsFactors = F)
 
 meta$date[meta$date == 'Early_June'] <- '23'
@@ -42,7 +35,6 @@ meta$treatment <- ifelse(meta$treatment=="25_year", "Fertilised", meta$treatment
 meta <- meta[meta$treatment != "5_year",]
 meta$treatment <- factor(meta$treatment, levels = c("Control", "Fertilised") )
 
-
 meta$group <- paste0("W",meta$date, meta$plot.1, "P", meta$plot)
 meta$group <- gsub("N","F",meta$group)
 
@@ -50,66 +42,35 @@ meta$group <- as.factor(meta$group)
 meta$treatment <- as.factor(meta$treatment)
 meta$date <- as.factor(meta$date)
 
-
-#' #remove non usefull samples
+# remove non useful samples
 data <- data[,colnames(data) %in% meta$SciLifeID]
 
-#' #Order them by group
+# Order them by group
 data <- data[, match(meta$SciLifeID, colnames(data))]
 
-#' change the names of the samples to group
+# change the names of the samples to group
 colnames(data) <- meta$group
 
-#control data
+# control data
 controlData <- data[,grepl('C',(colnames(data)))]
 
 # fertilised data
 fertilisedData <- data[,grepl('F',(colnames(data)))]
-```
 
-
-```{r createMegadata}
+# create the megadata
 megaData <- data
 megaData$gene <- rownames(megaData)
 megaData <- megaData %>%  select(gene, everything())
-```
 
-
-#data <- data[(rowSums(data) > 0),]
-#guilds <- read.table(guildFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = F)
-#
-####
-#####CREATING MEGADATA
-```{r addTaxo}
 taxonomyFile <- file.path(dataFolder, "gene_taxonomy.tsv")
 taxo <- read.table(taxonomyFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = FALSE)
 megaData <- left_join(megaData, taxo, by="gene")
 
-```
-not used
-```{r funGuild}
-# guildFile <- file.path(dataFolder, "taxo4funguild.guilds.txt")
-# guilds <- read.table(guildFile, header = TRUE, sep = '\t', comment.char = "", stringsAsFactors = F)
-# megaData <- left_join(megaData, guilds, by="gene")
-```
-
-not used
-```{r}
-# load(file.path(deFolder, "resFungiTreatment.RData"))
-# treatmentDF <- data.frame(gene = rownames(resFungiTreatment), 
-#                           treatment_lfc= resFungiTreatment[,"log2FoldChange"], 
-#                           treatment_padj = resFungiTreatment[,"padj"],
-#                           stringsAsFactors = F)
-
-
-# megaData <- left_join(megaData, treatmentDF, by="gene")
-```
-
-```{r saveMegaData}
+# save a TSV file and a Rdata file for future uses
 write.table(megaData, file=file.path(dataFolder, "megaData.tsv"), quote=F, row.names=F, sep='\t')
 save(megaData, file=file.path(dataFolder, "megaData.RData"))
-```
 
-```{r sessionInfo}
-sessionInfo()
-```
+writeLines(capture.output(sessionInfo()), file.path(dataFolder,
+                                                    paste0("megaData_sessionInfo_",Sys.Date(), ".txt"))
+)
+
