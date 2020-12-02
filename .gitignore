@@ -5,6 +5,8 @@
 # Session Data files
 .RData
 *.RData
+*.Rproj
+*.png
 # User-specific files
 .Ruserdata
 
@@ -42,3 +44,4 @@ env/
 results/
 data/
 reports/
+otherCode/

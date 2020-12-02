@@ -176,8 +176,13 @@ bulkClusterize <- function(criteria, spruceClusters, fungiClusters) {
 
 # Bulk analysis
 ```{r , results='asis',message=FALSE, warning=FALSE,  fig.hold='hold', out.width="50%"}
-criteriaList <- list(criteria1=criteria1, criteria2=criteria2, 
-                     criteria3=criteria3, criteria4=criteria4)
+criteriaList <- list(criteria1_pos=criteria1[criteria1$degradation<0,],
+                     criteria1_neg=criteria1[criteria1$degradation>0,],
+                     criteria3_pos=criteria3[criteria3$degradation<0,],
+                     criteria3_neg=criteria3[criteria3$degradation>0,],
+                     criteria4_pos=criteria4[criteria4$degradation<0,],
+                     criteria4_neg=criteria4[criteria4$degradation>0,]
+                     )
 
 for ( i in seq_along(criteriaList)) {
   
