@@ -1,5 +1,6 @@
 # Flakaliden 2011 analysis 
-Source code for the *Metatranscriptomics captures the destabilised mycorrhizal economy in nutrient enriched boreal forests* 
+Source code for the *Metatranscriptomics captures the destabilised mycorrhizal economy in nutrient enriched boreal forests*  
+[Manuscript homepage](http://terra.upsc.se/boreal-atlas)
 
 ## doc
 Folder containing metadata and the ENA xml submission files 
