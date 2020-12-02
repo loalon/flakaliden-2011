@@ -1,5 +1,6 @@
-# Flakaliden 2011 analysis source code for the 
-Metatranscriptomics captures the destabilised mycorrhizal economy in nutrient enriched boreal forests.
+# Flakaliden 2011 analysis 
+Source code for the *Metatranscriptomics captures the destabilised mycorrhizal economy in nutrient enriched boreal forests*  
+[Manuscript homepage](http://terra.upsc.se/boreal-atlas)
 
 ## doc
 Folder containing metadata and the ENA xml submission files 
@@ -16,7 +17,7 @@ Folder `spruce-roots-2011/src/R`
 	
 * networkClustering.Rmd  
   * Networks clustering
-	* Cluster enrichment
+  * Cluster enrichment
 	
 * TAtool_data
   * Scripts to format the data for the visualization app
@@ -39,7 +40,7 @@ Folder `spruce-roots-2012/src/R`
 * differentialExpression_ko.Rmd  
   * Biological QA
   * Differential expression analysis
-	* Data preparation for Seidr
+  * Data preparation for Seidr
 
 * differentialExpression_transcripts.Rmd  
   * Biological QA
@@ -54,11 +55,11 @@ Folder `spruce-roots-2012/src/R`
   * Creates a data frame with all the fungi information
 
 * networkThreshold_fungi_ko.Rmd
-	* KO hard threshold analysis
+  * KO hard threshold analysis
 	
 * networkClustering_fungi.Rmd
   * Networks clustering
-	* Cluster enrichment
+  * Cluster enrichment
 	
 * prepareSpeciesNetwork.Rmd
   * Data preparation for Seidr
@@ -74,7 +75,7 @@ Folder `fungi-2012/src/R`
 ## Common
 Folder `src/R`
 * correlationClusterAnalysis_*.Rmd
-	* Correlation analysis based on module similarity
+  * Correlation analysis based on module similarity
 	
 * bulkCorrelationAnalysis_*.Rmd
   * Correlation analysis results grouped and analysed
