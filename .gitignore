@@ -7,6 +7,8 @@
 *.RData
 *.Rproj
 *.png
+*.tsv
+
 # User-specific files
 .Ruserdata
 
@@ -45,3 +47,4 @@ results/
 data/
 reports/
 otherCode/
+others/
