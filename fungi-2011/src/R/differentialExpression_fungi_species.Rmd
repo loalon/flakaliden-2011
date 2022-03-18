@@ -29,13 +29,14 @@ library(dplyr)
 library(here)
 register(MulticoreParam(4))
 source(here("Rtoolbox/src/utilsDE.r"))
-source(here("/Rtoolbox/src/plot3Dvector.R"))
-source(here("/Rtoolbox/src/plotVectorPCA.R"))
+source(here("Rtoolbox/src/plot3Dvector.R"))
+source(here("Rtoolbox/src/plotVectorPCA.R"))
 source(here("Rtoolbox/src/plotEnrichedTreemap.R"))
 source(here("Rtoolbox/src/plotUpAndDown.R"))
 source(here("UPSCb-common/src/R/gopher.R"))
 
 ```
+
 ```{r}
 plotResults <- function(theData) {
   
