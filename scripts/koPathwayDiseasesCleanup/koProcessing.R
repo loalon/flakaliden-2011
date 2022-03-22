@@ -45,7 +45,7 @@ koPathwayDiseaseCleanup <- function(enrData, name="name", id="id", diseasesFile=
   
   enrData[[name]][(enrData[[id]] %in% diseases)] <- "mis-annotated"  
   ##This line can be commented out, if it is desired to keep "mis-annotated" in the treemaps for some reason
-  enrData <- enrData[-which(enrData[[name]]=="mis-annotated"),]
+  #enrData <- enrData[-which(enrData[[name]]=="mis-annotated"),]
   return(enrData)
 }
   
